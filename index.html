@@ -7134,7 +7134,8 @@ function renderAdminAllListings(){
         Nom: ${l.owner_name ? escapeHtml(l.owner_name) : '— (non défini)'}<br>
       </div>
       <div class="actions">
-        ${l.status!=='sold' && l.payment_status!=='premium' ? '<button class="btn-primary" data-admin-promo-boost">🎁 Booster gratuitement</button>' : ''}
+        ${l.status!=='sold' && l.payment_status!=='premium' ? '<button class="btn-primary" data-admin-promo-boost>🎁 Booster gratuitement</button>' : ''}
+        ${l.payment_status==='premium' ? '<button class="btn-secondary" data-admin-remove-boost>🚫 Retirer le boost</button>' : ''}
         ${l.status!=='sold' ? '<button class="btn-danger" data-admin-sold>Marquer vendu</button>' : ''}
         <button class="btn-danger" data-admin-delete>Supprimer</button>
       </div>
@@ -7210,6 +7211,17 @@ function renderAdminAllListings(){
         return;
       }
       toast(`Boost gratuit accordé pour ${days} jour(s) ✅`);
+      await loadAdminAllListings();
+      loadAndRender();
+    });
+    row.querySelector('[data-admin-remove-boost]')?.addEventListener('click', async ()=>{
+      if(!confirm('Retirer le statut Sponsorisé de cette annonce ?')) return;
+      const { error } = await supabase.from('listings').update({
+        payment_status: 'free',
+        premium_expires_at: null
+      }).eq('id', id);
+      if(error){ toast(`Erreur : ${error.message}`); return; }
+      toast('Boost retiré.');
       await loadAdminAllListings();
       loadAndRender();
     });
