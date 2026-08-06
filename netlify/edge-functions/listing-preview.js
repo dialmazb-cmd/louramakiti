@@ -24,19 +24,31 @@ export default async (request, context) => {
   const listingCode = url.searchParams.get('l') || url.searchParams.get('listing');
   const userAgent = request.headers.get('user-agent') || '';
 
+  console.log(`[listing-preview] hit: path=${url.pathname} search=${url.search} ua="${userAgent}"`);
+
   if (!listingCode || !CRAWLER_PATTERN.test(userAgent)) {
+    console.log(`[listing-preview] passing through — listingCode=${listingCode || 'none'} crawlerMatch=${CRAWLER_PATTERN.test(userAgent)}`);
     return context.next();
   }
+
+  console.log(`[listing-preview] crawler detected for listing ${listingCode} — fetching from Supabase`);
 
   try {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/listings?or=(short_code.eq.${encodeURIComponent(listingCode)},id.eq.${encodeURIComponent(listingCode)})&select=title,price,description,image_url,status&limit=1`,
       { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
     );
-    if (!res.ok) return context.next();
+    if (!res.ok) {
+      console.log(`[listing-preview] Supabase fetch failed: ${res.status}`);
+      return context.next();
+    }
     const rows = await res.json();
     const listing = rows && rows[0];
-    if (!listing) return context.next(); // sold/expired/deleted — fall back to the normal app rather than a broken preview
+    if (!listing) {
+      console.log(`[listing-preview] no listing found for code ${listingCode}`);
+      return context.next();
+    }
+    console.log(`[listing-preview] found listing "${listing.title}" — serving custom preview`);
 
     const price = new Intl.NumberFormat('fr-FR').format(listing.price) + ' GNF';
     const title = escapeHtml(listing.title);
@@ -66,7 +78,8 @@ export default async (request, context) => {
 
     return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } });
   } catch (e) {
-    return context.next(); // any failure at all — fail safe back to the normal app, never show a broken page
+    console.log(`[listing-preview] error: ${e && e.message}`);
+    return context.next();
   }
 };
 
