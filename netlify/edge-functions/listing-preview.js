@@ -20,6 +20,7 @@ function escapeHtml(s) {
 }
 
 export default async (request, context) => {
+  console.log(`[listing-preview] RAW request.url = ${request.url}`);
   const url = new URL(request.url);
   const listingCode = url.searchParams.get('l') || url.searchParams.get('listing');
   const userAgent = request.headers.get('user-agent') || '';
@@ -34,8 +35,18 @@ export default async (request, context) => {
   console.log(`[listing-preview] crawler detected for listing ${listingCode} — fetching from Supabase`);
 
   try {
+    // Short codes (the normal case) never look like a long UUID, so only
+    // check the id column when it actually could be one — sending a
+    // non-UUID value into a uuid column comparison makes Postgres reject
+    // the whole request with a 400, which was silently breaking every
+    // short-code lookup before this fix.
+    const isUuidShape = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(listingCode);
+    const filterQuery = isUuidShape
+      ? `or=(short_code.eq.${encodeURIComponent(listingCode)},id.eq.${encodeURIComponent(listingCode)})`
+      : `short_code=eq.${encodeURIComponent(listingCode)}`;
+
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/listings?or=(short_code.eq.${encodeURIComponent(listingCode)},id.eq.${encodeURIComponent(listingCode)})&select=title,price,description,image_url,status&limit=1`,
+      `${SUPABASE_URL}/rest/v1/listings?${filterQuery}&select=title,price,description,image_url,status&limit=1`,
       { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
     );
     if (!res.ok) {
@@ -46,7 +57,7 @@ export default async (request, context) => {
     const listing = rows && rows[0];
     if (!listing) {
       console.log(`[listing-preview] no listing found for code ${listingCode}`);
-      return context.next();
+      return context.next(); // sold/expired/deleted — fall back to the normal app rather than a broken preview
     }
     console.log(`[listing-preview] found listing "${listing.title}" — serving custom preview`);
 
