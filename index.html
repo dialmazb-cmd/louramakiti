@@ -7134,6 +7134,7 @@ function renderAdminAllListings(){
         Nom: ${l.owner_name ? escapeHtml(l.owner_name) : '— (non défini)'}<br>
       </div>
       <div class="actions">
+        ${l.status!=='sold' && l.payment_status!=='premium' ? '<button class="btn-primary" data-admin-promo-boost">🎁 Booster gratuitement</button>' : ''}
         ${l.status!=='sold' ? '<button class="btn-danger" data-admin-sold>Marquer vendu</button>' : ''}
         <button class="btn-danger" data-admin-delete>Supprimer</button>
       </div>
@@ -7184,6 +7185,31 @@ function renderAdminAllListings(){
     });
     row.querySelector('[data-admin-sold]')?.addEventListener('click', async ()=>{
       await supabase.from('listings').update({ status:'sold', sold_at: new Date().toISOString() }).eq('id', id);
+      await loadAdminAllListings();
+      loadAndRender();
+    });
+    row.querySelector('[data-admin-promo-boost]')?.addEventListener('click', async ()=>{
+      const daysStr = prompt('Booster gratuitement pendant combien de jours ?', '7');
+      if(daysStr === null) return;
+      const days = parseInt(daysStr, 10);
+      if(!days || days < 1 || days > 90){ toast('Entrez un nombre de jours valide (1 à 90).'); return; }
+      const premium_expires_at = new Date(Date.now() + days*24*3600*1000).toISOString();
+      const { error } = await supabase.from('listings').update({
+        payment_status: 'premium',
+        premium_expires_at,
+        transaction_reference: 'PROMO GRATUITE — accordée par admin',
+        calculated_boost_fee: 0,
+        boost_duration_days: days
+      }).eq('id', id);
+      if(error){
+        // Most likely cause: the 6-per-category cap for this listing's
+        // category is already full (same limit applies to promo boosts
+        // as paid ones, on purpose — keeps the sponsored section from
+        // being overcrowded either way).
+        toast(`Impossible d'accorder le boost : ${error.message || 'la catégorie est peut-être déjà pleine (6 max).'}`);
+        return;
+      }
+      toast(`Boost gratuit accordé pour ${days} jour(s) ✅`);
       await loadAdminAllListings();
       loadAndRender();
     });
