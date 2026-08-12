@@ -4442,8 +4442,13 @@ function compressImage(file, maxWidth=600, quality=0.5){
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, w, h);
         canvas.toBlob((blob)=>{
-          if(blob) return resolve({blob, ext: blob.type === 'image/webp' ? 'webp' : 'jpg'});
-          // Safari fallback: webp toBlob unsupported -> jpeg
+          if(blob && blob.type === 'image/webp') return resolve({blob, ext: 'webp'});
+          // WebP not actually supported by this browser. Some browsers don't
+          // signal that by returning null here (which is what this code used
+          // to assume) — they silently hand back a full-size, uncompressed
+          // PNG instead, completely ignoring the quality setting. Explicitly
+          // requesting JPEG here — rather than trusting whatever came back —
+          // is what actually guarantees compression happens either way.
           canvas.toBlob((jblob)=>resolve({blob:jblob, ext:'jpg'}), 'image/jpeg', quality);
         }, 'image/webp', quality);
       };
