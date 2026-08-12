@@ -23,6 +23,24 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icon-192.png">
+<!-- Meta (Facebook) Pixel — base install + PageView. Fires as early as
+     possible in <head> so ad reporting reflects real page-load timing. -->
+<script>
+!function(f,b,e,v,n,t,s)
+{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window, document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '28229239943376107');
+fbq('track', 'PageView');
+</script>
+<noscript><img height="1" width="1" style="display:none"
+src="https://www.facebook.com/tr?id=28229239943376107&ev=PageView&noscript=1"
+/></noscript>
+<!-- End Meta Pixel -->
 <style>
 :root{
   --night:#1B1F3B;
@@ -4325,6 +4343,7 @@ document.querySelectorAll('[data-close]').forEach(btn=>{
   document.addEventListener('click', (e)=>{
     const link = e.target.closest('.buyer-contact-link');
     if(!link) return;
+    if(window.fbq) fbq('track', 'Contact');
     if(localStorage.getItem('lmk_hide_safety_tip') === '1') return; // let it navigate normally
     e.preventDefault();
     if(link.closest('#makeOfferModal')) closeModal('makeOfferModal');
@@ -5013,6 +5032,12 @@ function openListingDetail(listing){
   renderSimilarListings(listing);
   openModal('listingDetailModal');
   maybeShowInstallNudge();
+  if(window.fbq) fbq('track', 'ViewContent', {
+    content_name: listing.title,
+    content_category: listing.category,
+    value: listing.price,
+    currency: 'GNF'
+  });
 }
 
 // Install nudge: shown after someone's viewed a few listings in this visit
