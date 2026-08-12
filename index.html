@@ -1502,6 +1502,8 @@ input,select,textarea{font-size:16px !important}
       <h4 style="margin:.2rem 0 .4rem">Toutes les annonces</h4>
       <p class="help" style="margin-top:0">En tant qu'administrateur, vous pouvez supprimer ou marquer comme vendue n'importe quelle annonce, même si l'appareil d'origine n'est plus reconnu.</p>
       <button type="button" class="btn-secondary btn-block" id="exportListingsBtn" style="margin-bottom:.5rem">📥 Exporter (CSV)</button>
+      <button type="button" class="btn-secondary btn-block" id="scanOversizedImagesBtn" style="margin-bottom:.5rem">🧹 Vérifier les photos non compressées</button>
+      <div id="imageCleanupResults" class="hidden" style="border:1px solid var(--line);border-radius:8px;padding:.6rem;margin-bottom:.6rem;font-size:.82rem"></div>
       <input type="text" id="adminListingsSearch" placeholder="🔎 Rechercher par titre ou téléphone..." style="width:100%;padding:.5rem .6rem;border:1px solid var(--line);border-radius:8px;font-size:.82rem;margin-bottom:.5rem">
       <div style="display:flex;gap:.4rem;margin-bottom:.5rem;flex-wrap:wrap">
         <button class="chip admin-listings-period-tab" data-period="all">Tout</button>
@@ -6054,6 +6056,124 @@ document.getElementById('exportListingsBtn').addEventListener('click', ()=>{
     adminAllListingsCache.map(l=>[l.title, l.price, l.category, l.city, l.phone_number, l.owner_name||'', l.status, l.created_at])
   );
 });
+
+// ---- Image cleanup tool ----
+// Finds and fixes listing photos that slipped through uncompressed due to
+// a since-fixed bug in compressImage() (some browsers silently returned a
+// full-size PNG instead of a compressed WebP/JPEG). Two-phase, deliberately
+// conservative given this touches real live listings:
+//   1. Scan (read-only): checks every photo's real size/type via a
+//      lightweight HEAD request, reports findings, changes nothing.
+//   2. Fix (only after explicit confirmation): re-downloads each flagged
+//      photo, recompresses it with the corrected logic, uploads the
+//      result as a NEW file (the original is never deleted or
+//      overwritten), and only then updates that listing's photo links to
+//      point at the new file. If anything fails partway, already-fixed
+//      photos stay fixed and nothing already working is put at risk.
+let oversizedImagesFound = []; // [{listingId, index, url}]
+const OVERSIZED_THRESHOLD_BYTES = 150 * 1024; // ~150KB — well above what a real compressed photo should ever be
+
+async function checkImageSize(url){
+  try{
+    const res = await fetch(url, { method: 'HEAD' });
+    const len = parseInt(res.headers.get('content-length') || '0', 10);
+    const type = res.headers.get('content-type') || '';
+    return { size: len, type, oversized: len > OVERSIZED_THRESHOLD_BYTES || type === 'image/png' };
+  }catch(e){
+    return { size: 0, type: '', oversized: false }; // network hiccup — skip rather than guess
+  }
+}
+
+document.getElementById('scanOversizedImagesBtn').addEventListener('click', async ()=>{
+  const btn = document.getElementById('scanOversizedImagesBtn');
+  const resultsEl = document.getElementById('imageCleanupResults');
+  btn.disabled = true;
+  resultsEl.classList.remove('hidden');
+  resultsEl.innerHTML = 'Analyse en cours… (ceci ne modifie rien, juste une vérification)';
+
+  // Full, unfiltered fetch — deliberately not reusing adminAllListingsCache,
+  // since that respects whatever date filter is currently selected in the
+  // UI and this needs to check every listing regardless.
+  const { data: allListings, error } = await supabase.from('listings').select('id,title,image_urls');
+  if(error){ resultsEl.innerHTML = `Erreur : ${error.message}`; btn.disabled = false; return; }
+
+  oversizedImagesFound = [];
+  let checked = 0;
+  const totalPhotos = allListings.reduce((n,l)=> n + (Array.isArray(l.image_urls) ? l.image_urls.length : 0), 0);
+
+  for(const listing of allListings){
+    const urls = Array.isArray(listing.image_urls) ? listing.image_urls : [];
+    for(let i=0; i<urls.length; i++){
+      checked++;
+      resultsEl.innerHTML = `Analyse en cours… ${checked}/${totalPhotos} photos vérifiées`;
+      const info = await checkImageSize(urls[i]);
+      if(info.oversized){
+        oversizedImagesFound.push({ listingId: listing.id, listingTitle: listing.title, index: i, url: urls[i], size: info.size, type: info.type });
+      }
+    }
+  }
+
+  if(!oversizedImagesFound.length){
+    resultsEl.innerHTML = `✅ Aucune photo non compressée trouvée sur ${totalPhotos} photos vérifiées.`;
+  } else {
+    const totalKb = (oversizedImagesFound.reduce((n,f)=>n+f.size,0) / 1024).toFixed(0);
+    resultsEl.innerHTML = `
+      ⚠️ ${oversizedImagesFound.length} photo(s) non compressée(s) trouvée(s) sur ${oversizedImagesFound.length} annonce(s) concernée(s) (${totalKb} Ko au total).<br>
+      Rien n'a encore été modifié.<br>
+      <button type="button" class="btn-danger btn-block" id="fixOversizedImagesBtn" style="margin-top:.5rem">Corriger ces ${oversizedImagesFound.length} photo(s) maintenant</button>
+    `;
+    document.getElementById('fixOversizedImagesBtn').addEventListener('click', runImageCleanupFix);
+  }
+  btn.disabled = false;
+});
+
+async function runImageCleanupFix(){
+  const resultsEl = document.getElementById('imageCleanupResults');
+  const total = oversizedImagesFound.length;
+  let fixed = 0, failed = 0;
+
+  for(let n=0; n<total; n++){
+    const item = oversizedImagesFound[n];
+    resultsEl.innerHTML = `Correction en cours… ${n+1}/${total} (✅ ${fixed} réussie(s), ❌ ${failed} échec(s))<br><small>${escapeHtml(item.listingTitle)}</small>`;
+    try{
+      const res = await fetch(item.url);
+      if(!res.ok) throw new Error('téléchargement échoué');
+      const originalBlob = await res.blob();
+      const { blob: newBlob, ext } = await compressImage(originalBlob, 600, 0.5);
+      const path = `${item.listingId}/fixed-${Date.now()}-${item.index}.${ext}`;
+      const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, newBlob, { contentType: newBlob.type });
+      if(upErr) throw upErr;
+      const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+
+      // Only touch the database after the replacement upload succeeded —
+      // re-fetch the current image_urls fresh (not the stale scan-time
+      // copy) in case the listing changed since the scan, then update just
+      // this one photo's position in the array.
+      const { data: current } = await supabase.from('listings').select('image_urls').eq('id', item.listingId).single();
+      const urls = Array.isArray(current?.image_urls) ? [...current.image_urls] : [];
+      if(item.index < urls.length && urls[item.index] === item.url){
+        urls[item.index] = pub.publicUrl;
+        const updates = { image_urls: urls };
+        if(item.index === 0) updates.image_url = pub.publicUrl;
+        const { error: updErr } = await supabase.from('listings').update(updates).eq('id', item.listingId);
+        if(updErr) throw updErr;
+        fixed++;
+      } else {
+        // The listing's photos changed since the scan (edited/reordered) —
+        // skip rather than risk overwriting something no longer accurate.
+        failed++;
+      }
+    }catch(e){
+      console.error('Image cleanup failed for', item.listingId, e);
+      failed++;
+    }
+  }
+
+  resultsEl.innerHTML = `Terminé — ✅ ${fixed} photo(s) corrigée(s), ❌ ${failed} échec(s) sur ${total}.` +
+    (failed ? '<br>Les échecs peuvent être relancés en refaisant une analyse.' : '');
+  oversizedImagesFound = [];
+  await loadAdminAllListings();
+}
 
 document.getElementById('exportSellersBtn').addEventListener('click', ()=>{
   exportCSV('louramakiti-vendeurs.csv',
