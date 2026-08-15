@@ -24,8 +24,12 @@
 <link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <!-- Meta (Facebook) Pixel — base install + PageView. Fires as early as
-     possible in <head> so ad reporting reflects real page-load timing. -->
+     possible in <head> so ad reporting reflects real page-load timing.
+     Only fires on the real production domain — this prevents the old
+     pre-migration Netlify testing link (and any other non-production
+     copy, like a local preview) from ever counting as real ad traffic. -->
 <script>
+if(location.hostname === 'louramakiti.com' || location.hostname === 'www.louramakiti.com'){
 !function(f,b,e,v,n,t,s)
 {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
 n.callMethod.apply(n,arguments):n.queue.push(arguments)};
@@ -36,6 +40,7 @@ s.parentNode.insertBefore(t,s)}(window, document,'script',
 'https://connect.facebook.net/en_US/fbevents.js');
 fbq('init', '28229239943376107');
 fbq('track', 'PageView');
+}
 </script>
 <noscript><img height="1" width="1" style="display:none"
 src="https://www.facebook.com/tr?id=28229239943376107&ev=PageView&noscript=1"
@@ -1504,6 +1509,8 @@ input,select,textarea{font-size:16px !important}
       <button type="button" class="btn-secondary btn-block" id="exportListingsBtn" style="margin-bottom:.5rem">📥 Exporter (CSV)</button>
       <button type="button" class="btn-secondary btn-block" id="scanOversizedImagesBtn" style="margin-bottom:.5rem">🧹 Vérifier les photos non compressées</button>
       <div id="imageCleanupResults" class="hidden" style="border:1px solid var(--line);border-radius:8px;padding:.6rem;margin-bottom:.6rem;font-size:.82rem"></div>
+      <button type="button" class="btn-secondary btn-block" id="scanMissingThumbsBtn" style="margin-bottom:.5rem">🖼️ Générer les miniatures manquantes</button>
+      <div id="thumbCleanupResults" class="hidden" style="border:1px solid var(--line);border-radius:8px;padding:.6rem;margin-bottom:.6rem;font-size:.82rem"></div>
       <input type="text" id="adminListingsSearch" placeholder="🔎 Rechercher par titre ou téléphone..." style="width:100%;padding:.5rem .6rem;border:1px solid var(--line);border-radius:8px;font-size:.82rem;margin-bottom:.5rem">
       <div style="display:flex;gap:.4rem;margin-bottom:.5rem;flex-wrap:wrap">
         <button class="chip admin-listings-period-tab" data-period="all">Tout</button>
@@ -4837,7 +4844,7 @@ async function loadAndRender(){
     // so this also avoids a permission error on this very common query.
     const { data, error } = await supabase
       .from('listings')
-      .select('id,short_code,title,price,description,phone_number,category,city,commune,delivery_available,condition,image_url,image_urls,owner_name,owner_token,status,payment_status,transaction_reference,calculated_boost_fee,boost_duration_days,created_at,expires_at,sold_at,premium_expires_at,flagged')
+      .select('id,short_code,title,price,description,phone_number,category,city,commune,delivery_available,condition,image_url,image_urls,thumbnail_url,owner_name,owner_token,status,payment_status,transaction_reference,calculated_boost_fee,boost_duration_days,created_at,expires_at,sold_at,premium_expires_at,flagged')
       .or(`status.eq.active,and(status.eq.sold,sold_at.gt.${twentyFourHoursAgoIso})`)
       .gt('created_at', sixtyDaysAgoIso)
       .order('created_at', { ascending: false });
@@ -4919,9 +4926,20 @@ function matchesFilters(l){
   return true;
 }
 
-function cardMediaHTML(l){
+function cardMediaHTML(l, detail){
   const urls = (Array.isArray(l.image_urls) && l.image_urls.length) ? l.image_urls : (l.image_url ? [l.image_url] : []);
   if(urls.length === 0) return `<div class="card-img-placeholder">🖼️</div>`;
+
+  // Grid view: one photo only, no rotation — uses the small dedicated
+  // thumbnail when this listing has one, falling back to the regular
+  // first photo for older listings posted before thumbnails existed.
+  if(!detail){
+    const src = l.thumbnail_url || urls[0];
+    return `<img class="card-img" src="${src}" alt="${escapeHtml(l.title)}" loading="lazy">`;
+  }
+
+  // Detail view (a listing someone actually opened): unchanged — full
+  // gallery, all photos at full quality, auto-rotating.
   if(urls.length === 1){
     return `<img class="card-img" src="${urls[0]}" alt="${escapeHtml(l.title)}" loading="lazy">`;
   }
@@ -4977,7 +4995,7 @@ function cardHTML(l, opts){
       ${premium && !sold ?'<span class="card-badge">Sponsorisé</span>':''}
       ${sold ? '<span class="card-badge sold-badge">✅ Vendu</span>' : ''}
       ${isExpired && showOwnerControls ? '<span class="card-badge sold-badge" style="background:var(--pepper)">⏰ Expiré</span>' : ''}
-      ${cardMediaHTML(l)}
+      ${cardMediaHTML(l, detail)}
       <button type="button" class="fav-btn ${favActive?'favorited':''}" data-fav-id="${l.id}" aria-label="Ajouter aux favoris">${favActive?'❤️':'🤍'}</button>
     </div>
     <div class="card-body">
@@ -5840,24 +5858,43 @@ listingForm.addEventListener('submit', async (e)=>{
   try{
     let image_url = editingListing?.image_url || null;
     let image_urls = editingListing?.image_urls || [];
+    let thumbnail_url = editingListing?.thumbnail_url || null;
     if(selectedFiles.length > 0){
       submitBtn.textContent = `Envoi des photos (0/${selectedFiles.length})…`;
       const uploadedUrls = [];
       for(let i=0; i<selectedFiles.length; i++){
         const { blob, ext } = await compressImage(selectedFiles[i], 600, 0.5);
         const path = `${deviceToken}/${Date.now()}-${i}.${ext}`;
-        const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, blob, { contentType: blob.type, upsert: true });
+        // cacheControl extended to 1 year (from Supabase's 1-hour default) —
+        // safe since every upload gets a unique timestamped filename and is
+        // never overwritten in place, so there's no staleness risk, only
+        // less repeat downloading for anyone who's already seen the photo.
+        const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, blob, { contentType: blob.type, upsert: true, cacheControl: '31536000' });
         if(upErr) throw upErr;
         const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
         uploadedUrls.push(pub.publicUrl);
         submitBtn.textContent = `Envoi des photos (${i+1}/${selectedFiles.length})…`;
+
+        // A small, separate thumbnail generated only from the first photo —
+        // this is what the browsing grid shows (one photo, not a rotating
+        // gallery). The full-size photos above are untouched and still
+        // power the full gallery once someone actually opens the listing.
+        if(i === 0){
+          const { blob: thumbBlob, ext: thumbExt } = await compressImage(selectedFiles[i], 200, 0.5);
+          const thumbPath = `${deviceToken}/${Date.now()}-thumb.${thumbExt}`;
+          const { error: thumbErr } = await supabase.storage.from(STORAGE_BUCKET).upload(thumbPath, thumbBlob, { contentType: thumbBlob.type, upsert: true, cacheControl: '31536000' });
+          if(!thumbErr){
+            const { data: thumbPub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(thumbPath);
+            thumbnail_url = thumbPub.publicUrl;
+          } // if the thumbnail upload fails for any reason, the grid just falls back to the full photo — never a broken image
+        }
       }
       image_urls = uploadedUrls;
       image_url = uploadedUrls[0];
     }
 
     const payload = {
-      title, price, description, phone_number: phone, category, city, commune, delivery_available, condition, owner_name, image_url, image_urls,
+      title, price, description, phone_number: phone, category, city, commune, delivery_available, condition, owner_name, image_url, image_urls, thumbnail_url,
     };
     if(pin){
       payload.management_pin = pin;
@@ -6141,7 +6178,7 @@ async function runImageCleanupFix(){
       const originalBlob = await res.blob();
       const { blob: newBlob, ext } = await compressImage(originalBlob, 600, 0.5);
       const path = `${item.listingId}/fixed-${Date.now()}-${item.index}.${ext}`;
-      const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, newBlob, { contentType: newBlob.type });
+      const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, newBlob, { contentType: newBlob.type, cacheControl: '31536000' });
       if(upErr) throw upErr;
       const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
 
@@ -6172,6 +6209,74 @@ async function runImageCleanupFix(){
   resultsEl.innerHTML = `Terminé — ✅ ${fixed} photo(s) corrigée(s), ❌ ${failed} échec(s) sur ${total}.` +
     (failed ? '<br>Les échecs peuvent être relancés en refaisant une analyse.' : '');
   oversizedImagesFound = [];
+  await loadAdminAllListings();
+}
+
+// ---- Thumbnail backfill tool ----
+// Listings posted before grid thumbnails existed don't have one yet — the
+// grid already falls back gracefully to their regular photo in the
+// meantime (see cardMediaHTML), so this is a nice-to-have cleanup, not
+// urgent. Same conservative two-phase pattern as the image cleanup tool
+// above: scan first (read-only), fix only after explicit confirmation.
+let missingThumbsFound = []; // [{listingId, listingTitle, firstPhotoUrl}]
+
+document.getElementById('scanMissingThumbsBtn').addEventListener('click', async ()=>{
+  const btn = document.getElementById('scanMissingThumbsBtn');
+  const resultsEl = document.getElementById('thumbCleanupResults');
+  btn.disabled = true;
+  resultsEl.classList.remove('hidden');
+  resultsEl.innerHTML = 'Analyse en cours… (ceci ne modifie rien, juste une vérification)';
+
+  const { data: allListings, error } = await supabase.from('listings').select('id,title,image_urls,thumbnail_url');
+  if(error){ resultsEl.innerHTML = `Erreur : ${error.message}`; btn.disabled = false; return; }
+
+  missingThumbsFound = allListings
+    .filter(l => !l.thumbnail_url && Array.isArray(l.image_urls) && l.image_urls.length > 0)
+    .map(l => ({ listingId: l.id, listingTitle: l.title, firstPhotoUrl: l.image_urls[0] }));
+
+  if(!missingThumbsFound.length){
+    resultsEl.innerHTML = `✅ Toutes les annonces avec photo ont déjà une miniature.`;
+  } else {
+    resultsEl.innerHTML = `
+      ${missingThumbsFound.length} annonce(s) sans miniature dédiée trouvée(s) (elles affichent leur photo normale en attendant — rien n'est cassé).<br>
+      Rien n'a encore été modifié.<br>
+      <button type="button" class="btn-primary btn-block" id="fixMissingThumbsBtn" style="margin-top:.5rem">Générer ${missingThumbsFound.length} miniature(s) maintenant</button>
+    `;
+    document.getElementById('fixMissingThumbsBtn').addEventListener('click', runThumbCleanupFix);
+  }
+  btn.disabled = false;
+});
+
+async function runThumbCleanupFix(){
+  const resultsEl = document.getElementById('thumbCleanupResults');
+  const total = missingThumbsFound.length;
+  let fixed = 0, failed = 0;
+
+  for(let n=0; n<total; n++){
+    const item = missingThumbsFound[n];
+    resultsEl.innerHTML = `Génération en cours… ${n+1}/${total} (✅ ${fixed} réussie(s), ❌ ${failed} échec(s))<br><small>${escapeHtml(item.listingTitle)}</small>`;
+    try{
+      const res = await fetch(item.firstPhotoUrl);
+      if(!res.ok) throw new Error('téléchargement échoué');
+      const originalBlob = await res.blob();
+      const { blob: thumbBlob, ext } = await compressImage(originalBlob, 200, 0.5);
+      const path = `${item.listingId}/thumb-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, thumbBlob, { contentType: thumbBlob.type, cacheControl: '31536000' });
+      if(upErr) throw upErr;
+      const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+
+      const { error: updErr } = await supabase.from('listings').update({ thumbnail_url: pub.publicUrl }).eq('id', item.listingId);
+      if(updErr) throw updErr;
+      fixed++;
+    }catch(e){
+      console.error('Thumbnail generation failed for', item.listingId, e);
+      failed++;
+    }
+  }
+
+  resultsEl.innerHTML = `Terminé — ✅ ${fixed} miniature(s) créée(s), ❌ ${failed} échec(s) sur ${total}.` +
+    (failed ? '<br>Les échecs peuvent être relancés en refaisant une analyse.' : '');
+  missingThumbsFound = [];
   await loadAdminAllListings();
 }
 
@@ -7425,7 +7530,7 @@ document.getElementById('adminBanners').addEventListener('change', async (e)=>{
     const { blob, ext } = await compressImage(file, 800, 0.7);
     const safeCat = cat.replace(/[^a-zA-Z0-9]+/g, '_');
     const path = `banners/${safeCat}-slot${slot}-${Date.now()}.${ext}`;
-    const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, blob, { contentType: blob.type, upsert: true });
+    const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, blob, { contentType: blob.type, upsert: true, cacheControl: '31536000' });
     if(upErr) throw upErr;
     const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
     urlInput.value = pub.publicUrl;
