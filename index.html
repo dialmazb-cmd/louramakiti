@@ -1737,7 +1737,7 @@ const CATEGORY_ICONS = {
   "Ménage": "🏠",
   "Mode": "👗",
   "Immobilier": "🏘️",
-  "Services": "🛠️",
+  "Services": "🤝",
   "Auto & Moto": "🚗",
   "Alimentation": "🍚",
   "Enfants": "🧸",
@@ -4353,6 +4353,9 @@ document.querySelectorAll('[data-close]').forEach(btn=>{
     const link = e.target.closest('.buyer-contact-link');
     if(!link) return;
     if(window.fbq) fbq('track', 'Contact');
+    const isOffer = !!link.closest('#makeOfferModal');
+    const contactListingId = isOffer ? pendingOfferListing?.id : link.closest('.card')?.dataset.id;
+    logContactEvent(contactListingId, link.dataset.method, isOffer);
     if(localStorage.getItem('lmk_hide_safety_tip') === '1') return; // let it navigate normally
     e.preventDefault();
     if(link.closest('#makeOfferModal')) closeModal('makeOfferModal');
@@ -4416,6 +4419,25 @@ document.addEventListener('click', (e)=>{
   const shareMsg = `Regarde cette annonce sur LouraMakiti : ${listing.title} à ${gnf(listing.price)} — ${location.origin}/?l=${listing.short_code || listing.id}`;
   shareListingWithImage({ title: listing.title, price: listing.price, image_url: listing.image_url }, shareMsg);
 });
+
+// Logs which of the 4 reach-out options (Appeler/WhatsApp/SMS/Négocier) a
+// buyer used on a listing, for the admin panel's "Contacts vendeurs" stats
+// — same "one per device per listing" idea as the report logging just
+// below, and same rule: fire-and-forget, never blocks or delays the
+// actual tel:/wa.me/sms: handoff, and a failed insert (offline, etc.)
+// leaves the contact button working exactly as before.
+function logContactEvent(listingId, method, viaOffer){
+  if(!configured || !listingId || !method) return;
+  supabase.from('contact_events').upsert({
+    listing_id: listingId,
+    method,
+    via_offer: !!viaOffer,
+    visitor_token: deviceToken
+  }, { onConflict: 'listing_id,method,visitor_token', ignoreDuplicates: true })
+  .then(({ error })=>{
+    if(error) console.error('Contact event log failed:', error);
+  });
+}
 
 // "Signaler" logs a structured report (one per device per listing, so a
 // single person can't inflate the count) in addition to pinging the admin
@@ -6486,6 +6508,7 @@ async function openAdminPanel(){
   await loadAdminReports();
   await loadAdminCahierAccounts();
   await loadAdminCahierActivity();
+  await loadAdminContactStats(); // after listings — Analyse tab's top-contacted list reads adminAllListingsCache for titles
   renderAdminAnalyse();
 
   const bannersEl = document.getElementById('adminBanners');
@@ -6510,6 +6533,18 @@ async function openAdminPanel(){
         : 'Une seule bannière pour cette catégorie (pas de rotation).'}</p>
     </div>`;
   }).join('');
+}
+
+// "Contacts vendeurs" stats for the Analyse tab — read-only, just counts
+// how many buyers tapped Appeler/WhatsApp/SMS/Négocier per listing.
+// Admin-only per RLS (see 08_contact_tracking.sql); a failed load here
+// just leaves that section showing "Aucun contact enregistré" instead of
+// breaking the rest of the admin panel.
+let adminContactEventsCache = [];
+async function loadAdminContactStats(){
+  const { data, error } = await supabase.from('contact_events').select('listing_id, method, via_offer');
+  if(error){ console.error('Contact stats load failed:', error); adminContactEventsCache = []; return; }
+  adminContactEventsCache = data || [];
 }
 
 // Admin override list: shows every listing regardless of which device
@@ -7038,8 +7073,44 @@ function renderAdminAnalyse(){
     .map(([k,v])=>`<div class="stats-row"><span>${escapeHtml(k)}</span><span>${v}</span></div>`).join('')
     || '<p class="help">Aucune donnée</p>';
 
+  // Contacts vendeurs — how many buyers tapped Appeler/WhatsApp/SMS/Négocier,
+  // from contact_events (see 08_contact_tracking.sql). "Négocier" isn't a
+  // separate channel — it just pre-fills an offer message before sending via
+  // WhatsApp or SMS — so those clicks are already inside the whatsapp/sms
+  // totals, and via_offer just breaks out how many of them came that way.
+  let contactsSectionHtml = '<p class="help">Aucun contact enregistré pour le moment.</p>';
+  if(adminContactEventsCache.length){
+    const totalsByMethod = { call: 0, whatsapp: 0, sms: 0 };
+    const viaOfferByMethod = { whatsapp: 0, sms: 0 };
+    const byListing = {};
+    adminContactEventsCache.forEach(ev=>{
+      if(totalsByMethod[ev.method] !== undefined) totalsByMethod[ev.method]++;
+      if(ev.via_offer && viaOfferByMethod[ev.method] !== undefined) viaOfferByMethod[ev.method]++;
+      byListing[ev.listing_id] = (byListing[ev.listing_id] || 0) + 1;
+    });
+    const topContactedHtml = Object.entries(byListing)
+      .sort((a,b) => b[1]-a[1])
+      .slice(0, 10)
+      .map(([listingId, count])=>{
+        const listing = adminAllListingsCache.find(l => l.id === listingId);
+        const label = listing ? escapeHtml(listing.title) : '(annonce supprimée)';
+        return `<div class="stats-row"><span>${label}</span><span>${count}</span></div>`;
+      }).join('') || '<p class="help">Aucune donnée</p>';
+
+    contactsSectionHtml = `
+      <p style="font-weight:700;margin:.6rem 0 .3rem">📞 Contacts vendeurs</p>
+      <div class="cahier-summary-grid">
+        <div><small>Total des contacts</small><br><strong style="color:var(--azure)">${adminContactEventsCache.length}</strong></div>
+        <div><small>Répartition par méthode</small><br><span class="help" style="margin:0">📞 Appels ${totalsByMethod.call} · 💬 WhatsApp ${totalsByMethod.whatsapp} (dont ${viaOfferByMethod.whatsapp} via Négocier) · ✉️ SMS ${totalsByMethod.sms} (dont ${viaOfferByMethod.sms} via Négocier)</span></div>
+      </div>
+      <p class="help" style="margin:.5rem 0 .2rem;font-weight:700">Annonces les plus contactées</p>
+      ${topContactedHtml}
+    `;
+  }
+
   el.innerHTML = `
     ${cahierSectionHtml}
+    ${contactsSectionHtml}
     <p style="font-weight:700;margin:.8rem 0 .3rem">📍 Répartition géographique (annonces)</p>
     <div class="stats-breakdown">
       <div>
