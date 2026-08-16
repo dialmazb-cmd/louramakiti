@@ -3617,6 +3617,23 @@ if('serviceWorker' in navigator){
   }
 })();
 
+// Confirms a REAL install happened — the browser actually fired the event
+// for "this page just got added to the home screen" — not just that the
+// install banner/prompt was shown or tapped. This only ever fires on
+// Android/Chrome; iOS Safari has no equivalent event for "Add to Home
+// Screen", so install_events (and the admin counter reading it) can only
+// ever be an Android floor, never a true cross-platform total.
+// Fire-and-forget, same pattern as the report/contact logging elsewhere in
+// this file: never blocks anything, and if the insert fails (offline,
+// etc.) the install itself still went through fine — only the count misses it.
+window.addEventListener('appinstalled', ()=>{
+  if(!configured) return;
+  supabase.from('install_events').insert({ user_agent: navigator.userAgent })
+    .then(({ error })=>{
+      if(error) console.error('Install event log failed:', error);
+    });
+});
+
 /* ---------------- helpers ---------------- */
 function gnf(n){ return Number(n||0).toLocaleString('fr-FR') + ' GNF'; }
 // Reusable tiny bar chart — buckets = [{label, value}, ...]. Pure HTML/CSS,
@@ -6509,6 +6526,7 @@ async function openAdminPanel(){
   await loadAdminCahierAccounts();
   await loadAdminCahierActivity();
   await loadAdminContactStats(); // after listings — Analyse tab's top-contacted list reads adminAllListingsCache for titles
+  await loadAdminInstallCount();
   renderAdminAnalyse();
 
   const bannersEl = document.getElementById('adminBanners');
@@ -6545,6 +6563,17 @@ async function loadAdminContactStats(){
   const { data, error } = await supabase.from('contact_events').select('listing_id, method, via_offer');
   if(error){ console.error('Contact stats load failed:', error); adminContactEventsCache = []; return; }
   adminContactEventsCache = data || [];
+}
+
+// Android install count for the Analyse tab — see the 'appinstalled'
+// listener earlier in this file and install_events (05_install_tracking.sql).
+// Just a row count (head:true skips fetching the rows themselves) — nothing
+// in admin needs more than the total right now.
+let adminInstallCount = 0;
+async function loadAdminInstallCount(){
+  const { count, error } = await supabase.from('install_events').select('*', { count: 'exact', head: true });
+  if(error){ console.error('Install count load failed:', error); adminInstallCount = 0; return; }
+  adminInstallCount = count || 0;
 }
 
 // Admin override list: shows every listing regardless of which device
@@ -7078,39 +7107,52 @@ function renderAdminAnalyse(){
   // separate channel — it just pre-fills an offer message before sending via
   // WhatsApp or SMS — so those clicks are already inside the whatsapp/sms
   // totals, and via_offer just breaks out how many of them came that way.
-  let contactsSectionHtml = '<p class="help">Aucun contact enregistré pour le moment.</p>';
-  if(adminContactEventsCache.length){
-    const totalsByMethod = { call: 0, whatsapp: 0, sms: 0 };
-    const viaOfferByMethod = { whatsapp: 0, sms: 0 };
-    const byListing = {};
-    adminContactEventsCache.forEach(ev=>{
-      if(totalsByMethod[ev.method] !== undefined) totalsByMethod[ev.method]++;
-      if(ev.via_offer && viaOfferByMethod[ev.method] !== undefined) viaOfferByMethod[ev.method]++;
-      byListing[ev.listing_id] = (byListing[ev.listing_id] || 0) + 1;
-    });
-    const topContactedHtml = Object.entries(byListing)
-      .sort((a,b) => b[1]-a[1])
-      .slice(0, 10)
-      .map(([listingId, count])=>{
-        const listing = adminAllListingsCache.find(l => l.id === listingId);
-        const label = listing ? escapeHtml(listing.title) : '(annonce supprimée)';
-        return `<div class="stats-row"><span>${label}</span><span>${count}</span></div>`;
-      }).join('') || '<p class="help">Aucune donnée</p>';
+  //
+  // The header (with its 📞 icon) always renders, even at zero — otherwise
+  // this whole section silently disappears the moment there's no data yet
+  // (e.g. right after deploying, before the first real click), which looks
+  // identical to the feature not being deployed at all. Showing "0" here
+  // is the only way to confirm from the admin panel that it's actually live.
+  const totalsByMethod = { call: 0, whatsapp: 0, sms: 0 };
+  const viaOfferByMethod = { whatsapp: 0, sms: 0 };
+  const byListing = {};
+  adminContactEventsCache.forEach(ev=>{
+    if(totalsByMethod[ev.method] !== undefined) totalsByMethod[ev.method]++;
+    if(ev.via_offer && viaOfferByMethod[ev.method] !== undefined) viaOfferByMethod[ev.method]++;
+    byListing[ev.listing_id] = (byListing[ev.listing_id] || 0) + 1;
+  });
+  const topContactedHtml = Object.entries(byListing)
+    .sort((a,b) => b[1]-a[1])
+    .slice(0, 10)
+    .map(([listingId, count])=>{
+      const listing = adminAllListingsCache.find(l => l.id === listingId);
+      const label = listing ? escapeHtml(listing.title) : '(annonce supprimée)';
+      return `<div class="stats-row"><span>${label}</span><span>${count}</span></div>`;
+    }).join('') || '<p class="help">Aucun contact enregistré pour le moment.</p>';
 
-    contactsSectionHtml = `
-      <p style="font-weight:700;margin:.6rem 0 .3rem">📞 Contacts vendeurs</p>
-      <div class="cahier-summary-grid">
-        <div><small>Total des contacts</small><br><strong style="color:var(--azure)">${adminContactEventsCache.length}</strong></div>
-        <div><small>Répartition par méthode</small><br><span class="help" style="margin:0">📞 Appels ${totalsByMethod.call} · 💬 WhatsApp ${totalsByMethod.whatsapp} (dont ${viaOfferByMethod.whatsapp} via Négocier) · ✉️ SMS ${totalsByMethod.sms} (dont ${viaOfferByMethod.sms} via Négocier)</span></div>
-      </div>
-      <p class="help" style="margin:.5rem 0 .2rem;font-weight:700">Annonces les plus contactées</p>
-      ${topContactedHtml}
-    `;
-  }
+  const contactsSectionHtml = `
+    <p style="font-weight:700;margin:.6rem 0 .3rem">📞 Contacts vendeurs</p>
+    <div class="cahier-summary-grid">
+      <div><small>Total des contacts</small><br><strong style="color:var(--azure)">${adminContactEventsCache.length}</strong></div>
+      <div><small>Répartition par méthode</small><br><span class="help" style="margin:0">📞 Appels ${totalsByMethod.call} · 💬 WhatsApp ${totalsByMethod.whatsapp} (dont ${viaOfferByMethod.whatsapp} via Négocier) · ✉️ SMS ${totalsByMethod.sms} (dont ${viaOfferByMethod.sms} via Négocier)</span></div>
+    </div>
+    <p class="help" style="margin:.5rem 0 .2rem;font-weight:700">Annonces les plus contactées</p>
+    ${topContactedHtml}
+  `;
+
+  // Installations Android — see the 'appinstalled' listener + install_events
+  // (05_install_tracking.sql). Android/Chrome-only by construction (iOS
+  // Safari never fires this event for "Add to Home Screen"), so the label
+  // says so rather than implying this is a full cross-platform total.
+  const installsSectionHtml = `
+    <p style="font-weight:700;margin:.6rem 0 .3rem">📲 Installations (Android)</p>
+    <p class="help" style="margin:0 0 .3rem">${adminInstallCount} installation${adminInstallCount === 1 ? '' : 's'} confirmée${adminInstallCount === 1 ? '' : 's'} — Android/Chrome uniquement, iOS ne peut pas être mesuré ainsi (limite d'Apple, pas de l'app).</p>
+  `;
 
   el.innerHTML = `
     ${cahierSectionHtml}
     ${contactsSectionHtml}
+    ${installsSectionHtml}
     <p style="font-weight:700;margin:.8rem 0 .3rem">📍 Répartition géographique (annonces)</p>
     <div class="stats-breakdown">
       <div>
