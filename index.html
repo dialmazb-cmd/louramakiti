@@ -666,12 +666,17 @@ input,select,textarea{font-size:16px !important}
   </div>
 </section>
 
-<section>
+<section id="listingsSection">
   <h2 class="section-label">🛍️ Annonces</h2>
   <div id="listingsGrid" class="grid"></div>
   <p id="emptyState" class="empty hidden">Aucune annonce pour le moment. Soyez le premier à vendre !</p>
   <p id="loadingState" class="empty">Chargement des annonces…</p>
-  <button id="loadMoreListingsBtn" class="btn-secondary btn-block hidden" style="margin:.8rem .9rem;width:calc(100% - 1.8rem)">Voir plus d'annonces</button>
+  <!-- Numbered pages (60 listings each) instead of an ever-growing "load
+       more" feed — keeps the scroll to the footer short and predictable no
+       matter how many listings exist in total. -->
+  <div id="listingsPaginationWrap" class="scroll-fade-wrap hidden" style="margin:.6rem 0">
+    <div id="listingsPagination" class="chips"></div>
+  </div>
 </section>
 
 <footer class="site-footer">
@@ -5172,14 +5177,15 @@ function renderSimilarListings(listing){
   section.classList.remove('hidden');
 }
 
-let mainGridPageSize = 20;
+const MAIN_GRID_PAGE_SIZE = 60;
+let mainGridCurrentPage = 1;
 let lastFilterSignature = null;
 
 function renderListings(){
   clearGalleryAutoTimers(); // stop any previous auto-rotating photo galleries before replacing the DOM
   const signature = JSON.stringify([state.category, state.city, state.commune, state.dateFilter, state.sort, state.onlyMine, state.onlyFavorites, state.search, state.onlyDelivery]);
   if(signature !== lastFilterSignature){
-    mainGridPageSize = 20; // any filter change starts back at page 1
+    mainGridCurrentPage = 1; // any filter change (including "Effacer les filtres") starts back at page 1
     lastFilterSignature = signature;
   }
 
@@ -5193,11 +5199,18 @@ function renderListings(){
 
   const grid = document.getElementById('listingsGrid');
   const empty = document.getElementById('emptyState');
-  const loadMoreBtn = document.getElementById('loadMoreListingsBtn');
-  const shownListings = filtered.slice(0, mainGridPageSize);
+  // Fixed-size pages (60 each) that REPLACE the grid on navigation, instead
+  // of the old "Voir plus" button that kept appending forever — that made
+  // the footer sink further and further down the longer someone browsed.
+  // Clamp in case a delete/filter change shrinks the result set out from
+  // under whatever page was showing.
+  const totalPages = Math.max(1, Math.ceil(filtered.length / MAIN_GRID_PAGE_SIZE));
+  if(mainGridCurrentPage > totalPages) mainGridCurrentPage = totalPages;
+  const pageStart = (mainGridCurrentPage - 1) * MAIN_GRID_PAGE_SIZE;
+  const shownListings = filtered.slice(pageStart, pageStart + MAIN_GRID_PAGE_SIZE);
   grid.innerHTML = shownListings.map(l=>cardHTML(l)).join('');
   empty.classList.toggle('hidden', filtered.length>0);
-  loadMoreBtn.classList.toggle('hidden', filtered.length <= shownListings.length);
+  renderListingsPagination(totalPages);
   const hasActiveFilter = !!state.search || state.category !== 'Tout' || state.city !== 'Toutes les villes' || state.dateFilter !== 'all' || state.onlyDelivery;
   if(state.onlyFavorites){
     empty.innerHTML = "Vous n'avez encore aucun favori. Touchez le cœur 🤍 sur une annonce pour l'ajouter ici.";
@@ -5242,6 +5255,27 @@ function renderListings(){
 
   attachCardHandlers(grid);
   attachCardHandlers(document.getElementById('sponsoredGrid'));
+}
+
+// Numbered page chips (1, 2, 3…) below the listings grid — reuses the same
+// .chips/.chip styling as the filter rows elsewhere in the app, so it looks
+// consistent and scrolls horizontally on its own if there are ever enough
+// pages to need it. Hidden entirely when everything fits on one page.
+function renderListingsPagination(totalPages){
+  const wrap = document.getElementById('listingsPaginationWrap');
+  const el = document.getElementById('listingsPagination');
+  if(totalPages <= 1){
+    wrap.classList.add('hidden');
+    el.innerHTML = '';
+    return;
+  }
+  wrap.classList.remove('hidden');
+  const pageBtn = (label, page, opts={}) =>
+    `<button type="button" class="chip listings-page-btn${page===mainGridCurrentPage?' active':''}" data-page="${page}"${opts.disabled?' disabled':''}>${label}</button>`;
+  let html = pageBtn('◀', Math.max(1, mainGridCurrentPage-1), { disabled: mainGridCurrentPage===1 });
+  for(let p=1; p<=totalPages; p++) html += pageBtn(String(p), p);
+  html += pageBtn('▶', Math.min(totalPages, mainGridCurrentPage+1), { disabled: mainGridCurrentPage===totalPages });
+  el.innerHTML = html;
 }
 
 // Sponsored row auto-scroll: gently advances one card at a time so all 6
@@ -7722,9 +7756,19 @@ document.getElementById('saveBannersBtn').addEventListener('click', async ()=>{
   phoneOtherEl.addEventListener('input', ()=> phoneOtherEl.setCustomValidity(''));
 })();
 
-document.getElementById('loadMoreListingsBtn').addEventListener('click', ()=>{
-  mainGridPageSize += 20;
+// Event delegation, same reasoning as the buyer-contact-link handler above —
+// the pagination chips are re-rendered on every renderListings() call, so a
+// direct listener would be lost each time the page/filters change.
+document.addEventListener('click', (e)=>{
+  const btn = e.target.closest('.listings-page-btn');
+  if(!btn || btn.disabled) return;
+  const page = Number(btn.dataset.page);
+  if(!page || page === mainGridCurrentPage) return;
+  mainGridCurrentPage = page;
   renderListings();
+  // Jump back to the top of the listings section (not the very top of the
+  // page) so switching pages doesn't strand people below the header/banners.
+  document.getElementById('listingsSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
 document.getElementById('footerYear').textContent = new Date().getFullYear();
