@@ -824,6 +824,23 @@ input,select,textarea{font-size:16px !important}
       <p id="boostUnavailableMsg" class="cap-blocked hidden">✨ Sponsorisé complet pour cette catégorie pour le moment. Réessayez plus tard.</p>
       <p id="boostCapMsg" class="cap-blocked hidden"></p>
 
+      <!-- Independent of "Sponsorisé" above — this isn't in-app placement,
+           it's a manual service: admin shares the listing's link as a post
+           on LouraMakiti's own Facebook page and boosts it with their own
+           card, after verifying payment. Can be combined with Sponsorisé
+           or used on its own. -->
+      <div class="checkline" id="fbBoostToggleRow">
+        <input type="checkbox" id="f_fb_boost">
+        <label for="f_fb_boost" style="margin:0;font-weight:600" id="fbBoostLabel">📘 Booster aussi sur Facebook</label>
+      </div>
+      <p class="help" style="margin-top:-.4rem" id="fbBoostHelp">Nous partageons votre annonce sur notre page Facebook et la boostons pour toucher encore plus d'acheteurs.</p>
+      <div class="field hidden" id="fbBoostFields">
+        <p id="fbBoostInstructions" class="fee-preview"></p>
+        <label>🧾 ID de Transaction / Référence SMS (Boost Facebook)</label>
+        <input type="text" id="f_fb_transaction_ref">
+        <p class="help">Collez ici la référence reçue par SMS après votre transfert Orange Money pour le boost Facebook.</p>
+      </div>
+
       <button type="submit" class="btn-primary btn-block" id="formSubmitBtn">Publier l'annonce</button>
     </form>
   </div>
@@ -1467,6 +1484,7 @@ input,select,textarea{font-size:16px !important}
       <button class="admin-tab" data-tab="cahier-activity">📊 Activité Boutique</button>
       <button class="admin-tab" data-tab="analyse">📈 Analyse</button>
       <button class="admin-tab" data-tab="banners">🖼️ Bannières</button>
+      <button class="admin-tab" data-tab="settings">⚙️ Réglages</button>
     </div>
     </div>
 
@@ -1487,7 +1505,11 @@ input,select,textarea{font-size:16px !important}
     </div>
 
     <div class="admin-tab-panel hidden" data-panel="pending">
-      <h4 style="margin:.2rem 0 .4rem">Paiements en attente</h4>
+      <h4 style="margin:.2rem 0 .4rem">📘 Demandes de Boost Facebook</h4>
+      <p class="help" style="margin-top:0">Vendeur payé et vérifié → partagez le lien de son annonce sur votre page Facebook et boostez le post vous-même, puis marquez la demande comme boostée ici.</p>
+      <div id="adminFbBoostRequests"></div>
+      <hr style="border:none;border-top:1px solid var(--line);margin:1rem 0">
+      <h4 style="margin:.2rem 0 .4rem">Paiements en attente (Sponsorisé)</h4>
       <div id="adminBoostCategoryStats" style="margin-bottom:.6rem"></div>
       <button type="button" class="btn-secondary btn-block" id="exportPendingBtn" style="margin-bottom:.6rem">📥 Exporter (CSV)</button>
       <div class="scroll-fade-wrap">
@@ -1512,10 +1534,6 @@ input,select,textarea{font-size:16px !important}
       <h4 style="margin:.2rem 0 .4rem">Toutes les annonces</h4>
       <p class="help" style="margin-top:0">En tant qu'administrateur, vous pouvez supprimer ou marquer comme vendue n'importe quelle annonce, même si l'appareil d'origine n'est plus reconnu.</p>
       <button type="button" class="btn-secondary btn-block" id="exportListingsBtn" style="margin-bottom:.5rem">📥 Exporter (CSV)</button>
-      <button type="button" class="btn-secondary btn-block" id="scanOversizedImagesBtn" style="margin-bottom:.5rem">🧹 Vérifier les photos non compressées</button>
-      <div id="imageCleanupResults" class="hidden" style="border:1px solid var(--line);border-radius:8px;padding:.6rem;margin-bottom:.6rem;font-size:.82rem"></div>
-      <button type="button" class="btn-secondary btn-block" id="scanMissingThumbsBtn" style="margin-bottom:.5rem">🖼️ Générer les miniatures manquantes</button>
-      <div id="thumbCleanupResults" class="hidden" style="border:1px solid var(--line);border-radius:8px;padding:.6rem;margin-bottom:.6rem;font-size:.82rem"></div>
       <input type="text" id="adminListingsSearch" placeholder="🔎 Rechercher par titre ou téléphone..." style="width:100%;padding:.5rem .6rem;border:1px solid var(--line);border-radius:8px;font-size:.82rem;margin-bottom:.5rem">
       <div style="display:flex;gap:.4rem;margin-bottom:.5rem;flex-wrap:wrap">
         <button class="chip admin-listings-period-tab" data-period="all">Tout</button>
@@ -1609,7 +1627,13 @@ input,select,textarea{font-size:16px !important}
     </div>
 
     <div class="admin-tab-panel hidden" data-panel="banners">
-      <h4 style="margin:.2rem 0 .4rem">Réglages du site</h4>
+      <h4 style="margin:.2rem 0 .4rem">Bannières partenaires</h4>
+      <div id="adminBanners"></div>
+      <button class="btn-primary btn-block" id="saveBannersBtn" style="margin-top:.4rem">Enregistrer les bannières</button>
+    </div>
+
+    <div class="admin-tab-panel hidden" data-panel="settings">
+      <h4 style="margin:.2rem 0 .4rem">Facebook &amp; WhatsApp</h4>
       <div class="field">
         <label>Facebook Link</label>
         <input type="text" id="adminFacebookLinkInput" placeholder="https://www.facebook.com/votrepage">
@@ -1619,6 +1643,9 @@ input,select,textarea{font-size:16px !important}
         <input type="text" id="adminWhatsappNumberInput" placeholder="Indicatif + numéro, chiffres uniquement">
         <p class="help">Utilisé pour "Contacter l'Admin", le bouton WhatsApp du pied de page, et les rappels envoyés depuis l'app.</p>
       </div>
+
+      <hr style="border:none;border-top:1px solid var(--line);margin:1rem 0">
+      <h4 style="margin:.2rem 0 .4rem">Prix des boosts</h4>
       <div class="field">
         <label style="display:flex;align-items:center;gap:.5rem;font-weight:600">
           <input type="checkbox" id="adminBoostEnabledCheckbox" style="width:auto" checked>
@@ -1626,11 +1653,64 @@ input,select,textarea{font-size:16px !important}
         </label>
         <p class="help">Désactivez pendant le lancement — le bouton "Booster mon annonce" disparaît pour tout le monde jusqu'à ce que vous le réactiviez. Les annonces déjà sponsorisées restent visibles jusqu'à leur expiration normale.</p>
       </div>
+      <div class="field">
+        <label>Prix Sponsorisé — 24 heures (GNF)</label>
+        <input type="number" id="adminBoostFee1dInput" min="0" step="1000" inputmode="numeric">
+      </div>
+      <div class="field">
+        <label>Prix Sponsorisé — 3 jours (GNF)</label>
+        <input type="number" id="adminBoostFee3dInput" min="0" step="1000" inputmode="numeric">
+      </div>
+      <div class="field">
+        <label>Prix Sponsorisé — 7 jours (GNF)</label>
+        <input type="number" id="adminBoostFee7dInput" min="0" step="1000" inputmode="numeric">
+        <p class="help">Ces 3 prix changent immédiatement pour tout le monde dès l'enregistrement — aucune mise à jour du code n'est nécessaire.</p>
+      </div>
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:.5rem;font-weight:600">
+          <input type="checkbox" id="adminFbBoostEnabledCheckbox" style="width:auto" checked>
+          Boost Facebook activé sur le site
+        </label>
+        <p class="help">Le vendeur paie, vous vérifiez manuellement, puis vous partagez et boostez vous-même l'annonce sur votre page Facebook (avec votre propre carte). Désactivez pour retirer temporairement cette option du formulaire de publication.</p>
+      </div>
+      <div class="field">
+        <label>Prix Boost Facebook (GNF)</label>
+        <input type="number" id="adminFbBoostFeeInput" min="0" step="1000" inputmode="numeric">
+        <p class="help">Demandes reçues dans l'onglet "💳 Paiements", section "📘 Demandes de Boost Facebook".</p>
+      </div>
       <button type="button" class="btn-primary btn-block" id="saveSiteSettingsBtn" style="margin-bottom:1rem">Enregistrer les réglages</button>
-      <hr style="border:none;border-top:1px solid var(--line);margin-bottom:1rem">
-      <h4 style="margin:.2rem 0 .4rem">Bannières partenaires</h4>
-      <div id="adminBanners"></div>
-      <button class="btn-primary btn-block" id="saveBannersBtn" style="margin-top:.4rem">Enregistrer les bannières</button>
+
+      <hr style="border:none;border-top:1px solid var(--line);margin:1rem 0">
+      <h4 style="margin:.2rem 0 .4rem">Photos</h4>
+      <!-- Scans by date range instead of the whole database every time —
+           each photo is checked with a real network request, so re-checking
+           thousands of already-verified photos just to catch 2 new ones was
+           the actual slowness. Defaults to "Jour" (today) so a routine click
+           after posting a few listings stays fast; "Tout" is still there for
+           an occasional full audit. -->
+      <p class="help" style="margin:0 0 .3rem;font-weight:700">🧹 Vérifier les photos non compressées</p>
+      <div style="display:flex;gap:.4rem;margin-bottom:.5rem;flex-wrap:wrap">
+        <button class="chip image-cleanup-period-tab" data-period="all">Tout</button>
+        <button class="chip image-cleanup-period-tab active" data-period="day">Jour</button>
+        <button class="chip image-cleanup-period-tab" data-period="week">Semaine</button>
+        <button class="chip image-cleanup-period-tab" data-period="month">Mois</button>
+        <button class="chip image-cleanup-period-tab" data-period="year">Année</button>
+      </div>
+      <input type="date" id="imageCleanupPeriodDate" style="width:100%;padding:.5rem .6rem;border:1px solid var(--line);border-radius:8px;font-size:.82rem;margin-bottom:.5rem">
+      <button type="button" class="btn-secondary btn-block" id="scanOversizedImagesBtn" style="margin-bottom:.5rem">Lancer la vérification</button>
+      <div id="imageCleanupResults" class="hidden" style="border:1px solid var(--line);border-radius:8px;padding:.6rem;margin-bottom:.6rem;font-size:.82rem"></div>
+
+      <p class="help" style="margin:0 0 .3rem;font-weight:700">🖼️ Générer les miniatures manquantes</p>
+      <div style="display:flex;gap:.4rem;margin-bottom:.5rem;flex-wrap:wrap">
+        <button class="chip thumb-cleanup-period-tab" data-period="all">Tout</button>
+        <button class="chip thumb-cleanup-period-tab active" data-period="day">Jour</button>
+        <button class="chip thumb-cleanup-period-tab" data-period="week">Semaine</button>
+        <button class="chip thumb-cleanup-period-tab" data-period="month">Mois</button>
+        <button class="chip thumb-cleanup-period-tab" data-period="year">Année</button>
+      </div>
+      <input type="date" id="thumbCleanupPeriodDate" style="width:100%;padding:.5rem .6rem;border:1px solid var(--line);border-radius:8px;font-size:.82rem;margin-bottom:.5rem">
+      <button type="button" class="btn-secondary btn-block" id="scanMissingThumbsBtn" style="margin-bottom:.5rem">Lancer la vérification</button>
+      <div id="thumbCleanupResults" class="hidden" style="border:1px solid var(--line);border-radius:8px;padding:.6rem;margin-bottom:.6rem;font-size:.82rem"></div>
     </div>
   </div>
 </div>
@@ -1717,8 +1797,10 @@ wirePhoneFormatHint('cahierCountryCode', 'cahierLocalPhone');
 wirePhoneFormatHint('cahierMultiSaleCountryCode', 'cahierMultiSaleLocalPhone');
 wirePhoneFormatHint('cahierContactCountryCode', 'cahierContactLocalPhone');
 
-// Boost pricing: flat rate per duration tier (easy to edit — change the
-// "fee" numbers below to whatever GNF amounts fit your market).
+// Boost pricing: flat rate per duration tier. These numbers below are just
+// the fallback shown for the instant before loadSiteSettings() finishes —
+// the real, current prices live in site_settings and are admin-editable
+// from the "Bannières" tab (no code change / GitHub upload needed anymore).
 // Defaults true until loadSiteSettings() runs — matches the app's
 // original always-on behavior for the brief moment before that finishes.
 let boostGloballyEnabled = true;
@@ -1728,6 +1810,15 @@ const BOOST_TIERS = [
   { days: 7, label: "7 jours",   fee: 40000 },
 ];
 
+// Facebook Boost: NOT in-app placement (no category cap, no premium_expires_at,
+// nothing to do with the "Sponsorisé" carousel) — this is a manual service
+// where the admin personally shares the listing's link as a post on their own
+// Facebook page and boosts it with their own card, after verifying payment.
+// See fb_boost_requests (09_facebook_boost_requests.sql) and the "📘 Demandes
+// de Boost Facebook" section in the admin Paiements tab.
+let fbBoostGloballyEnabled = true;
+let FB_BOOST_FEE = 15000; // fallback until loadSiteSettings() finishes — real price is admin-editable
+
 // At most this many listings can be boosted or awaiting boost approval at
 // the SAME time, PER CATEGORY — each of the 7 categories has its own
 // independent pool of 6 (see countActiveBoosts/updateBoostAvailability,
@@ -1735,12 +1826,13 @@ const BOOST_TIERS = [
 // it just mirrors everything sponsored anywhere.
 const SYSTEM_BOOST_CAP = 6;
 
-const CATEGORIES = ["Électroniques","Ménage","Mode","Immobilier","Services","Auto & Moto","Alimentation","Enfants","Agricole","Sport/Loisirs","Autre"];
+const CATEGORIES = ["Électroniques","Ménage","Mode","Beauté & Cosmétique","Immobilier","Services","Auto & Moto","Alimentation","Enfants","Agricole","Sport/Loisirs","Autre"];
 const CATEGORY_ICONS = {
   "Tout": "🗂️",
   "Électroniques": "📱",
   "Ménage": "🏠",
   "Mode": "👗",
+  "Beauté & Cosmétique": "💄",
   "Immobilier": "🏘️",
   "Services": "🤝",
   "Auto & Moto": "🚗",
@@ -4511,6 +4603,30 @@ function compressImage(file, maxWidth=600, quality=0.5){
   });
 }
 
+// Retries a single Storage upload a couple of times before giving up. Most
+// failed photo uploads (see the "Échec de la publication" reports) are a
+// one-off drop on a slow/unstable connection, not a permanently broken one
+// — so 2 extra attempts with a short pause, rather than failing the whole
+// listing on the first hiccup, fixes the common case without adding much
+// wait time when the connection is actually fine (0 retries needed then).
+// onRetry (optional) lets the caller show "reconnecting…" feedback instead
+// of leaving the submit button looking frozen during the pause.
+async function uploadPhotoWithRetry(path, blob, options, onRetry){
+  const MAX_ATTEMPTS = 3;
+  let lastError;
+  for(let attempt=1; attempt<=MAX_ATTEMPTS; attempt++){
+    const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, blob, options);
+    if(!error) return;
+    lastError = error;
+    console.error(`Photo upload failed (attempt ${attempt}/${MAX_ATTEMPTS}):`, error);
+    if(attempt < MAX_ATTEMPTS){
+      onRetry?.(attempt);
+      await new Promise(r => setTimeout(r, attempt * 1500)); // 1.5s, then 3s
+    }
+  }
+  throw lastError;
+}
+
 /* ---------------- populate static selects/chips ---------------- */
 const categoryBtnEl = document.getElementById('categoryBtn');
 const cityFilterEl = document.getElementById('cityFilter');
@@ -5655,6 +5771,13 @@ let boostConfig = null; // {fee, durationDays, reference}
    browser's native file input always resets to only the latest picker
    session, so we keep our own running list and preview it as thumbnails. */
 let selectedPhotoFiles = [];
+// Caches successful uploads per File object across repeated "Publier"
+// attempts within the same form session — if publishing fails partway
+// through (e.g. photo 3 of 5 drops on a bad connection), the photos that
+// already made it to Storage don't get re-uploaded when the seller taps
+// "Publier l'annonce" again; only the ones that actually failed do. Cleared
+// in resetForm() since that's also where selectedPhotoFiles gets cleared.
+let uploadedPhotoCache = new WeakMap(); // File -> { url, thumbUrl? }
 const fImageInput = document.getElementById('f_image');
 const photoPreviewEl = document.getElementById('photoPreview');
 
@@ -5701,6 +5824,7 @@ function resetForm(){
   selectedBoostTier = null;
   descSuggestionIndex = 0;
   selectedPhotoFiles = [];
+  uploadedPhotoCache = new WeakMap();
   renderPhotoPreview();
   document.getElementById('formTitle').textContent = 'Publier une annonce';
   document.getElementById('formSubmitBtn').textContent = "Publier l'annonce";
@@ -5726,6 +5850,8 @@ function resetForm(){
   }
   refreshFormCommuneOptions();
   updateBoostAvailability();
+  fbBoostFieldsEl.classList.add('hidden');
+  updateFbBoostAvailability();
 }
 function openCreateForm(){
   resetForm();
@@ -5846,6 +5972,31 @@ document.getElementById('confirmBoostBtn').addEventListener('click', ()=>{
   toast('Sponsorisation configurée. Publiez votre annonce pour finaliser.');
 });
 
+// Facebook Boost — no tiers, just one flat fee, so unlike "Sponsorisé"
+// there's no picker modal: checking the box reveals the fee + a transaction
+// reference field right there in the form.
+const fbBoostCheckbox = document.getElementById('f_fb_boost');
+const fbBoostFieldsEl = document.getElementById('fbBoostFields');
+function updateFbBoostAvailability(){
+  const toggleRow = document.getElementById('fbBoostToggleRow');
+  const help = document.getElementById('fbBoostHelp');
+  document.getElementById('fbBoostLabel').textContent = `📘 Booster aussi sur Facebook (${FB_BOOST_FEE.toLocaleString('fr-FR')} GNF)`;
+  const show = fbBoostGloballyEnabled && configured;
+  toggleRow.classList.toggle('hidden', !show);
+  help.classList.toggle('hidden', !show);
+  if(!show){
+    fbBoostCheckbox.checked = false;
+    fbBoostFieldsEl.classList.add('hidden');
+  }
+}
+fbBoostCheckbox.addEventListener('change', ()=>{
+  fbBoostFieldsEl.classList.toggle('hidden', !fbBoostCheckbox.checked);
+  if(fbBoostCheckbox.checked){
+    document.getElementById('fbBoostInstructions').textContent =
+      `Pour booster aussi votre annonce sur notre page Facebook, envoyez exactement ${FB_BOOST_FEE.toLocaleString('fr-FR')} GNF par Orange Money au numéro de l'administrateur (${ADMIN_PHONE}). Une fois le transfert fait, collez le Numéro de Transaction ci-dessous. Après vérification de votre paiement (sous 24h), nous partagerons et boosterons votre annonce sur notre page Facebook, puis vous contacterons par WhatsApp pour confirmer.`;
+  }
+});
+
 listingForm.addEventListener('submit', async (e)=>{
   e.preventDefault();
   if(!configured) return toast('Configuration requise (Supabase).');
@@ -5865,6 +6016,11 @@ listingForm.addEventListener('submit', async (e)=>{
 
   if(boostCheckbox.checked && !boostConfig){
     toast('Confirmez les détails de la sponsorisation avant de publier.');
+    return;
+  }
+  const fbBoostRef = document.getElementById('f_fb_transaction_ref').value.trim();
+  if(fbBoostCheckbox.checked && !fbBoostRef){
+    toast('Veuillez saisir votre référence de transaction pour le boost Facebook.');
     return;
   }
 
@@ -5936,16 +6092,32 @@ listingForm.addEventListener('submit', async (e)=>{
       submitBtn.textContent = `Envoi des photos (0/${selectedFiles.length})…`;
       const uploadedUrls = [];
       for(let i=0; i<selectedFiles.length; i++){
-        const { blob, ext } = await compressImage(selectedFiles[i], 600, 0.5);
+        const file = selectedFiles[i];
+
+        // Already uploaded in a previous attempt this session (e.g. this is
+        // a retry after "Échec de la publication" on photo 3) — reuse it
+        // instead of sending the same photo again.
+        const cached = uploadedPhotoCache.get(file);
+        if(cached){
+          uploadedUrls.push(cached.url);
+          if(i === 0 && cached.thumbUrl) thumbnail_url = cached.thumbUrl;
+          submitBtn.textContent = `Envoi des photos (${i+1}/${selectedFiles.length})…`;
+          continue;
+        }
+
+        const { blob, ext } = await compressImage(file, 600, 0.5);
         const path = `${deviceToken}/${Date.now()}-${i}.${ext}`;
         // cacheControl extended to 1 year (from Supabase's 1-hour default) —
         // safe since every upload gets a unique timestamped filename and is
         // never overwritten in place, so there's no staleness risk, only
         // less repeat downloading for anyone who's already seen the photo.
-        const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, blob, { contentType: blob.type, upsert: true, cacheControl: '31536000' });
-        if(upErr) throw upErr;
+        // uploadPhotoWithRetry gives a flaky connection 2 extra tries before
+        // this throws and the whole publish attempt is treated as failed.
+        await uploadPhotoWithRetry(path, blob, { contentType: blob.type, upsert: true, cacheControl: '31536000' },
+          ()=>{ submitBtn.textContent = `Connexion lente, nouvel essai… (photo ${i+1}/${selectedFiles.length})`; });
         const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
         uploadedUrls.push(pub.publicUrl);
+        const cacheEntry = { url: pub.publicUrl };
         submitBtn.textContent = `Envoi des photos (${i+1}/${selectedFiles.length})…`;
 
         // A small, separate thumbnail generated only from the first photo —
@@ -5953,14 +6125,19 @@ listingForm.addEventListener('submit', async (e)=>{
         // gallery). The full-size photos above are untouched and still
         // power the full gallery once someone actually opens the listing.
         if(i === 0){
-          const { blob: thumbBlob, ext: thumbExt } = await compressImage(selectedFiles[i], 200, 0.5);
+          const { blob: thumbBlob, ext: thumbExt } = await compressImage(file, 200, 0.5);
           const thumbPath = `${deviceToken}/${Date.now()}-thumb.${thumbExt}`;
-          const { error: thumbErr } = await supabase.storage.from(STORAGE_BUCKET).upload(thumbPath, thumbBlob, { contentType: thumbBlob.type, upsert: true, cacheControl: '31536000' });
-          if(!thumbErr){
+          try{
+            await uploadPhotoWithRetry(thumbPath, thumbBlob, { contentType: thumbBlob.type, upsert: true, cacheControl: '31536000' });
             const { data: thumbPub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(thumbPath);
             thumbnail_url = thumbPub.publicUrl;
-          } // if the thumbnail upload fails for any reason, the grid just falls back to the full photo — never a broken image
+            cacheEntry.thumbUrl = thumbPub.publicUrl;
+          }catch(_){ /* thumbnail is optional even after retries — the grid just falls back to the full photo, never a broken image */ }
         }
+
+        // Cache AFTER both the photo and its thumbnail attempt are done, so
+        // a retry of this exact publish never re-sends this file again.
+        uploadedPhotoCache.set(file, cacheEntry);
       }
       image_urls = uploadedUrls;
       image_url = uploadedUrls[0];
@@ -6013,6 +6190,25 @@ listingForm.addEventListener('submit', async (e)=>{
       supabase.rpc('increment_seller_post_count', { p_phone: phone }).then(()=>{}, ()=>{});
     }
 
+    // Facebook Boost request — completely separate from payment_status/
+    // "Sponsorisé" above (see fb_boost_requests / 09_facebook_boost_requests.sql).
+    // Real money already changed hands by this point, so a failure here
+    // must never be silent — the listing still publishes either way, but
+    // the seller is told to reach the admin directly so their payment
+    // doesn't go untracked.
+    if(fbBoostCheckbox.checked){
+      const { error: fbErr } = await supabase.from('fb_boost_requests').insert({
+        listing_id: savedId,
+        phone_number: phone,
+        transaction_reference: fbBoostRef,
+        fee: FB_BOOST_FEE
+      });
+      if(fbErr){
+        console.error('fb_boost_requests insert failed:', fbErr);
+        toast("Votre annonce est publiée, mais la demande de boost Facebook n'a pas pu être enregistrée automatiquement — contactez l'admin par WhatsApp avec votre référence de transaction pour confirmer.");
+      }
+    }
+
     closeModal('formModal');
     await loadAndRender();
 
@@ -6055,6 +6251,13 @@ listingForm.addEventListener('submit', async (e)=>{
     openModal('successModal');
   }catch(err){
     console.error('Publication error:', err);
+    // If at least one photo made it into uploadedPhotoCache before this
+    // failure, say so — those won't be re-sent on the next tap of
+    // "Publier l'annonce", only whatever didn't make it through yet.
+    const anyPhotosCached = selectedFiles.some(f => uploadedPhotoCache.has(f));
+    const failureMsg = anyPhotosCached
+      ? "Échec de la publication. Vérifiez votre connexion et réessayez — les photos déjà envoyées sont conservées, inutile de les renvoyer."
+      : "Échec de la publication. Vérifiez votre connexion et réessayez.";
     // On a flaky connection, the request can succeed on the server even
     // though the confirmation never makes it back to the phone — check
     // before telling the seller it failed outright.
@@ -6071,10 +6274,10 @@ listingForm.addEventListener('submit', async (e)=>{
         closeModal('formModal');
         await loadAndRender();
       } else {
-        toast("Échec de la publication. Vérifiez votre connexion et réessayez.");
+        toast(failureMsg);
       }
     }catch(_){
-      toast("Échec de la publication. Vérifiez votre connexion et réessayez.");
+      toast(failureMsg);
     }
   }finally{
     submitBtn.disabled = false;
@@ -6194,6 +6397,29 @@ async function checkImageSize(url){
   }
 }
 
+// Wires a period-chip row (Tout/Jour/Semaine/Mois/Année) + date input for
+// one of the two photo-scan tools below — same chip pattern used everywhere
+// else in admin (Annonces, Paiements…). Returns a getter for the currently
+// selected {period, dateStr} so the scan handlers can build a date-ranged
+// query instead of always fetching every listing in the database.
+function wireScanPeriodTabs(tabClass, dateInputId){
+  let period = 'day';
+  const dateInput = document.getElementById(dateInputId);
+  dateInput.value = todayKey();
+  document.querySelectorAll(`.${tabClass}`).forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll(`.${tabClass}`).forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      period = btn.dataset.period;
+      dateInput.classList.toggle('hidden', period === 'all');
+      if(period !== 'all' && !dateInput.value) dateInput.value = todayKey();
+    });
+  });
+  return () => ({ period, dateStr: dateInput.value || todayKey() });
+}
+const getImageCleanupPeriod = wireScanPeriodTabs('image-cleanup-period-tab', 'imageCleanupPeriodDate');
+const getThumbCleanupPeriod = wireScanPeriodTabs('thumb-cleanup-period-tab', 'thumbCleanupPeriodDate');
+
 document.getElementById('scanOversizedImagesBtn').addEventListener('click', async ()=>{
   const btn = document.getElementById('scanOversizedImagesBtn');
   const resultsEl = document.getElementById('imageCleanupResults');
@@ -6201,10 +6427,18 @@ document.getElementById('scanOversizedImagesBtn').addEventListener('click', asyn
   resultsEl.classList.remove('hidden');
   resultsEl.innerHTML = 'Analyse en cours… (ceci ne modifie rien, juste une vérification)';
 
-  // Full, unfiltered fetch — deliberately not reusing adminAllListingsCache,
-  // since that respects whatever date filter is currently selected in the
-  // UI and this needs to check every listing regardless.
-  const { data: allListings, error } = await supabase.from('listings').select('id,title,image_urls');
+  // Scoped to the selected date range by default (see wireScanPeriodTabs
+  // above) — each photo below is checked with a real network request, so
+  // re-checking thousands of already-verified photos just to catch a
+  // couple of new listings was the actual slowness. Pick "Tout" for an
+  // occasional full audit.
+  const { period, dateStr } = getImageCleanupPeriod();
+  let listingsQuery = supabase.from('listings').select('id,title,image_urls');
+  if(period !== 'all'){
+    const { start, end } = getCahierPeriodRange(period, dateStr);
+    listingsQuery = listingsQuery.gte('created_at', start.toISOString()).lt('created_at', end.toISOString());
+  }
+  const { data: allListings, error } = await listingsQuery;
   if(error){ resultsEl.innerHTML = `Erreur : ${error.message}`; btn.disabled = false; return; }
 
   oversizedImagesFound = [];
@@ -6300,7 +6534,17 @@ document.getElementById('scanMissingThumbsBtn').addEventListener('click', async 
   resultsEl.classList.remove('hidden');
   resultsEl.innerHTML = 'Analyse en cours… (ceci ne modifie rien, juste une vérification)';
 
-  const { data: allListings, error } = await supabase.from('listings').select('id,title,image_urls,thumbnail_url');
+  // Scoped to the selected date range by default (see wireScanPeriodTabs
+  // above) — this one's a cheap DB filter rather than a per-photo network
+  // check, so it's less critical, but scoping it too avoids pulling every
+  // listing in the database just to look at a handful of new ones.
+  const { period, dateStr } = getThumbCleanupPeriod();
+  let listingsQuery = supabase.from('listings').select('id,title,image_urls,thumbnail_url');
+  if(period !== 'all'){
+    const { start, end } = getCahierPeriodRange(period, dateStr);
+    listingsQuery = listingsQuery.gte('created_at', start.toISOString()).lt('created_at', end.toISOString());
+  }
+  const { data: allListings, error } = await listingsQuery;
   if(error){ resultsEl.innerHTML = `Erreur : ${error.message}`; btn.disabled = false; return; }
 
   missingThumbsFound = allListings
@@ -6441,6 +6685,74 @@ let pendingCategory = 'all';
     });
   });
 })();
+
+// "📘 Demandes de Boost Facebook" — completely separate from the
+// Sponsorisé/payment_status queue above: a fb_boost_requests row, not a
+// listings row, and resolving it never touches premium_expires_at or the
+// per-category cap. Approving just means "I've manually shared and boosted
+// this on Facebook" — there's nothing here for the app itself to activate.
+let adminFbBoostRequestsCache = [];
+async function loadAdminFbBoostRequests(){
+  const el = document.getElementById('adminFbBoostRequests');
+  if(el) el.innerHTML = 'Chargement…';
+  const { data, error } = await supabase.from('fb_boost_requests')
+    .select('*').eq('status', 'pending_verification').order('requested_at', { ascending: true });
+  if(error){ console.error('loadAdminFbBoostRequests failed:', error); if(el) el.innerHTML = 'Erreur de chargement.'; return; }
+  adminFbBoostRequestsCache = data || [];
+  renderAdminFbBoostRequests();
+}
+function renderAdminFbBoostRequests(){
+  const el = document.getElementById('adminFbBoostRequests');
+  if(!el) return;
+  if(!adminFbBoostRequestsCache.length){ el.innerHTML = '<p class="help">Aucune demande de boost Facebook en attente.</p>'; return; }
+  el.innerHTML = adminFbBoostRequestsCache.map(r=>{
+    // adminAllListingsCache may not have loaded yet the very first time,
+    // or the listing may since have been deleted — either way, degrade
+    // gracefully instead of breaking the whole list.
+    const listing = adminAllListingsCache.find(l=>l.id===r.listing_id);
+    const title = listing ? escapeHtml(listing.title) : '(annonce introuvable)';
+    const link = listing ? `${location.origin}/?l=${listing.short_code||listing.id}` : null;
+    return `
+    <div class="admin-row" data-id="${r.id}">
+      <div>
+        <strong>${title}</strong><br>
+        ${link ? `Lien à partager: <a href="${escapeHtml(link)}" target="_blank" rel="noopener">${escapeHtml(link)}</a><br>` : ''}
+        Tél vendeur: ${escapeHtml(r.phone_number)}<br>
+        Référence: ${escapeHtml(r.transaction_reference||'—')}<br>
+        Frais attendu: ${gnf(r.fee)}
+      </div>
+      <div class="actions">
+        <button class="btn-palm" data-fb-approve>Marquer comme boosté</button>
+        <button class="btn-danger" data-fb-reject>Rejeter</button>
+      </div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.admin-row').forEach(row=>{
+    const id = row.dataset.id;
+    row.querySelector('[data-fb-approve]').addEventListener('click', async ()=>{
+      const req = adminFbBoostRequestsCache.find(r=>r.id===id);
+      if(req){
+        const listing = adminAllListingsCache.find(l=>l.id===req.listing_id);
+        // Opened before the await, same reason as the Sponsorisé approval
+        // button below — browsers block window.open() calls made after an
+        // await as an unrequested popup.
+        if(listing){
+          const confirmMsg = `Bonjour ! Votre annonce "${listing.title}" a été partagée et boostée sur notre page Facebook ✅. Merci pour votre confiance !`;
+          window.open(waLink(req.phone_number, confirmMsg), '_blank');
+        }
+      }
+      await supabase.from('fb_boost_requests').update({ status: 'boosted', resolved_at: new Date().toISOString() }).eq('id', id);
+      adminFbBoostRequestsCache = adminFbBoostRequestsCache.filter(r=>r.id!==id);
+      renderAdminFbBoostRequests();
+    });
+    row.querySelector('[data-fb-reject]').addEventListener('click', async ()=>{
+      await supabase.from('fb_boost_requests').update({ status: 'rejected', resolved_at: new Date().toISOString() }).eq('id', id);
+      adminFbBoostRequestsCache = adminFbBoostRequestsCache.filter(r=>r.id!==id);
+      renderAdminFbBoostRequests();
+    });
+  });
+}
+
 async function loadAdminPending(){
   const pendingEl = document.getElementById('adminPending');
   pendingEl.innerHTML = 'Chargement…';
@@ -6554,6 +6866,7 @@ async function openAdminPanel(){
 
   await loadAdminAllListings();
   await loadAdminPending(); // after listings — its new per-category summary reads adminAllListingsCache
+  await loadAdminFbBoostRequests(); // after listings — needs adminAllListingsCache for titles/links
   await loadAdminRatingsStats();
   await loadAdminSellers();
   await loadAdminReports();
@@ -7827,6 +8140,19 @@ async function loadSiteSettings(){
     // exactly like it always did.
     boostGloballyEnabled = map.boost_enabled !== 'false';
     updateBoostAvailability();
+    // Boost pricing — admin-editable (see saveSiteSettingsBtn below). Falls
+    // back to BOOST_TIERS' own hardcoded defaults if a key is missing or
+    // not a valid positive number, so a half-filled site_settings row can
+    // never leave a tier silently priced at 0 or NaN.
+    const feeKeyByDays = { 1: 'boost_fee_1d', 3: 'boost_fee_3d', 7: 'boost_fee_7d' };
+    BOOST_TIERS.forEach(tier=>{
+      const raw = Number(map[feeKeyByDays[tier.days]]);
+      if(Number.isFinite(raw) && raw > 0) tier.fee = raw;
+    });
+    const rawFbFee = Number(map.fb_boost_fee);
+    if(Number.isFinite(rawFbFee) && rawFbFee > 0) FB_BOOST_FEE = rawFbFee;
+    fbBoostGloballyEnabled = map.fb_boost_enabled !== 'false';
+    updateFbBoostAvailability();
     // Pre-fill the admin panel's own inputs too, so re-opening Bannières
     // shows the currently-saved values instead of blank fields.
     const fbInput = document.getElementById('adminFacebookLinkInput');
@@ -7835,6 +8161,16 @@ async function loadSiteSettings(){
     if(fbInput && map.facebook_link) fbInput.value = map.facebook_link;
     if(waInput && map.admin_whatsapp_number) waInput.value = map.admin_whatsapp_number;
     if(boostCheckbox) boostCheckbox.checked = boostGloballyEnabled;
+    const fee1dInput = document.getElementById('adminBoostFee1dInput');
+    const fee3dInput = document.getElementById('adminBoostFee3dInput');
+    const fee7dInput = document.getElementById('adminBoostFee7dInput');
+    const fbFeeInput = document.getElementById('adminFbBoostFeeInput');
+    const fbEnabledCheckbox = document.getElementById('adminFbBoostEnabledCheckbox');
+    if(fee1dInput) fee1dInput.value = BOOST_TIERS.find(t=>t.days===1).fee;
+    if(fee3dInput) fee3dInput.value = BOOST_TIERS.find(t=>t.days===3).fee;
+    if(fee7dInput) fee7dInput.value = BOOST_TIERS.find(t=>t.days===7).fee;
+    if(fbFeeInput) fbFeeInput.value = FB_BOOST_FEE;
+    if(fbEnabledCheckbox) fbEnabledCheckbox.checked = fbBoostGloballyEnabled;
   }catch(e){ console.error('loadSiteSettings failed:', e); }
 }
 loadSiteSettings();
@@ -7842,11 +8178,27 @@ document.getElementById('saveSiteSettingsBtn').addEventListener('click', async (
   const fbLink = document.getElementById('adminFacebookLinkInput').value.trim();
   const waNumber = document.getElementById('adminWhatsappNumberInput').value.trim().replace(/\D/g, '');
   const boostEnabled = document.getElementById('adminBoostEnabledCheckbox').checked;
+  const fee1d = Number(document.getElementById('adminBoostFee1dInput').value);
+  const fee3d = Number(document.getElementById('adminBoostFee3dInput').value);
+  const fee7d = Number(document.getElementById('adminBoostFee7dInput').value);
+  const fbFee = Number(document.getElementById('adminFbBoostFeeInput').value);
+  const fbEnabled = document.getElementById('adminFbBoostEnabledCheckbox').checked;
+  for(const [label, val] of [['24 heures', fee1d], ['3 jours', fee3d], ['7 jours', fee7d], ['Boost Facebook', fbFee]]){
+    if(!Number.isFinite(val) || val <= 0){
+      toast(`Prix invalide pour "${label}" — entrez un nombre supérieur à 0.`);
+      return;
+    }
+  }
   try{
     const { error } = await supabase.from('site_settings').upsert([
       { key: 'facebook_link', value: fbLink || null },
       { key: 'admin_whatsapp_number', value: waNumber || null },
       { key: 'boost_enabled', value: boostEnabled ? 'true' : 'false' },
+      { key: 'boost_fee_1d', value: String(fee1d) },
+      { key: 'boost_fee_3d', value: String(fee3d) },
+      { key: 'boost_fee_7d', value: String(fee7d) },
+      { key: 'fb_boost_fee', value: String(fbFee) },
+      { key: 'fb_boost_enabled', value: fbEnabled ? 'true' : 'false' },
     ]);
     if(error){
       console.error('saveSiteSettings failed:', error);
@@ -7861,6 +8213,12 @@ document.getElementById('saveSiteSettingsBtn').addEventListener('click', async (
     }
     boostGloballyEnabled = boostEnabled;
     updateBoostAvailability();
+    BOOST_TIERS.find(t=>t.days===1).fee = fee1d;
+    BOOST_TIERS.find(t=>t.days===3).fee = fee3d;
+    BOOST_TIERS.find(t=>t.days===7).fee = fee7d;
+    FB_BOOST_FEE = fbFee;
+    fbBoostGloballyEnabled = fbEnabled;
+    updateFbBoostAvailability();
     toast('Réglages enregistrés ✅');
   }catch(e){
     console.error('saveSiteSettings failed:', e);
