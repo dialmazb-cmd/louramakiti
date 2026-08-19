@@ -68,6 +68,11 @@ src="https://www.facebook.com/tr?id=28229239943376107&ev=PageView&noscript=1"
      own background) so a 1px border can still visually separate header
      from page even though both are pale. */
   --topbar-bg:#FFFFFF;
+  /* "Recherché" (wanted ads) gets its own accent, distinct from --mango
+     (used for Sponsorisé/boost) — deliberately a different color family so
+     a wanted post never reads as "an item for sale", boosted or not. */
+  --wanted:#5B3FA8;
+  --wanted-tint:#F2EEFA;
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
@@ -539,6 +544,71 @@ input,select,textarea{font-size:16px !important}
 .banner-slot-editor{border:1px dashed var(--line);border-radius:8px;padding:.55rem;margin:.5rem 0}
 .banner-slot-editor input[type=file]{font-size:.72rem;width:100%}
 
+/* ---- "Recherché" (wanted ads) ---- */
+.wanted-boosted-row{
+  display:flex;gap:.55rem;overflow-x:auto;padding:.2rem .9rem .6rem;
+  scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+}
+.wanted-boosted-row::-webkit-scrollbar{display:none}
+.wanted-boost-card{
+  flex:0 0 150px;scroll-snap-align:start;
+  background:var(--wanted-tint);border:1px solid var(--wanted);border-radius:var(--radius);
+  padding:.55rem .6rem;
+}
+.wanted-boost-card .wanted-flame-tag{
+  display:inline-flex;align-items:center;gap:.15rem;
+  background:var(--wanted);color:#fff;font-size:.6rem;font-weight:800;
+  padding:.1rem .4rem;border-radius:8px;margin-bottom:.3rem;
+}
+.wanted-boost-card .wanted-title{font-size:.76rem;font-weight:700;color:var(--night);margin:0 0 .2rem;line-height:1.25;min-height:2.1em;overflow:hidden}
+.wanted-boost-card .wanted-budget{font-size:.7rem;color:var(--wanted);font-weight:700;margin:0 0 .15rem}
+.wanted-boost-card .wanted-meta{font-size:.62rem;color:var(--stone);margin:0 0 .45rem}
+.wanted-boost-card .wanted-acts{display:flex;gap:.25rem}
+.wanted-boost-card .wanted-acts a,.wanted-boost-card .wanted-acts button{flex:1;border:none;border-radius:6px;padding:.3rem 0;font-size:.68rem;color:#fff;text-align:center;text-decoration:none}
+.wanted-divider-label{padding:.5rem .9rem .3rem;font-size:.65rem;font-weight:700;color:var(--stone);text-transform:uppercase;letter-spacing:.03em}
+.wanted-row{
+  display:flex;align-items:center;gap:.6rem;padding:.7rem .9rem;
+  border-bottom:1px solid var(--line);
+}
+.wanted-row:last-child{border-bottom:none}
+.wanted-row .wanted-txt{flex:1;min-width:0}
+.wanted-row .wanted-txt .wanted-title{font-size:.82rem;font-weight:700;color:var(--night);margin:0 0 .15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wanted-row .wanted-txt .wanted-budget{font-size:.72rem;color:var(--wanted);font-weight:700;margin:0 0 .1rem}
+.wanted-row .wanted-txt .wanted-meta{font-size:.65rem;color:var(--stone);margin:0}
+.wanted-row .wanted-acts{display:flex;gap:.3rem;flex-shrink:0}
+.wanted-row .wanted-acts a,.wanted-row .wanted-acts button{
+  width:30px;height:30px;border-radius:50%;border:none;color:#fff;font-size:.78rem;
+  display:flex;align-items:center;justify-content:center;text-decoration:none;flex-shrink:0;
+}
+.wanted-row .wanted-acts .wanted-owner-btn{width:auto;border-radius:8px;padding:0 .5rem;font-size:.68rem;font-weight:700}
+.wanted-badge-btn{position:relative}
+.wanted-nudge-card{
+  margin:0 .9rem 1.2rem;background:var(--wanted-tint);
+  border:1px dashed var(--wanted);border-radius:var(--radius);
+  padding:1rem .9rem;text-align:center;
+}
+.wanted-nudge-card p{margin:0 0 .7rem;font-size:.85rem;color:var(--night);font-weight:600}
+.wanted-nudge-card button{
+  background:var(--wanted);color:#fff;border:none;border-radius:999px;
+  padding:.6rem 1.1rem;font-size:.82rem;font-weight:700;
+}
+
+/* ---- "Recherché" match alerts (buyer <-> seller, in-app only) ---- */
+.wanted-badge-alert{background:#C0392B !important}
+.wanted-match-line{
+  display:flex;align-items:center;gap:.35rem;
+  background:#FDECEC;border:1px solid #F0C4C4;border-radius:8px;
+  padding:.35rem .5rem;margin:.3rem 0;font-size:.66rem;color:#8A2F2F;font-weight:600;
+}
+.wanted-match-line .wanted-match-dot{flex-shrink:0}
+.wanted-match-line .wanted-match-btn{
+  margin-left:auto;background:#C0392B;color:#fff;border:none;
+  border-radius:14px;padding:.25rem .55rem;font-size:.6rem;font-weight:700;flex-shrink:0;
+}
+.wanted-match-divider{color:#C0392B}
+.wanted-seller-match-row{background:#FFF8F5}
+.wanted-match-note{font-size:.65rem;color:#C0392B;font-weight:700;margin:0 0 .1rem}
+
 .toast{
   position:fixed;left:50%;bottom:80px;transform:translateX(-50%);
   background:var(--night);color:#fff;padding:.6rem 1rem;border-radius:999px;font-size:.82rem;
@@ -590,6 +660,7 @@ input,select,textarea{font-size:16px !important}
   <button id="topbarForceUpdate" class="fav-quick-btn" aria-label="Actualiser la page" title="Actualiser la page">🔄</button>
   <button id="favoritesQuickBtn" class="fav-quick-btn" aria-label="Mes favoris">🤍</button>
   <button id="shareAppBtn" class="fav-quick-btn" aria-label="Partager l'application" title="Partager l'application">↗️</button>
+  <button id="wantedQuickBtn" class="fav-quick-btn wanted-badge-btn" aria-label="Recherché" title="Recherché — annonces demandées par des acheteurs">📢<span id="wantedBadge" class="cahier-credit-badge hidden">0</span></button>
 </div>
 
 <!-- CATEGORY PANEL -->
@@ -676,6 +747,14 @@ input,select,textarea{font-size:16px !important}
        matter how many listings exist in total. -->
   <div id="listingsPaginationWrap" class="scroll-fade-wrap hidden" style="margin:.6rem 0">
     <div id="listingsPagination" class="chips"></div>
+  </div>
+  <!-- Shown only once someone reaches the true last page of results (see
+       renderListings) — a different moment than the "0 results" empty
+       state above, this catches someone who browsed everything and still
+       didn't find what they wanted. -->
+  <div id="wantedNudgeCard" class="wanted-nudge-card hidden">
+    <p>🔍 Vous n'avez pas trouvé ce qu'il vous faut ?</p>
+    <button type="button" id="wantedNudgeBtn">📢 Publier ce que je cherche</button>
   </div>
 </section>
 
@@ -904,6 +983,123 @@ input,select,textarea{font-size:16px !important}
     </div>
     <a class="act-whatsapp btn-block disabled-link buyer-contact-link" data-method="whatsapp" id="offerWhatsappLink" style="display:block;text-decoration:none;margin-bottom:.5rem" target="_blank" rel="noopener">Envoyer via WhatsApp</a>
     <a class="act-sms btn-block disabled-link buyer-contact-link" data-method="sms" id="offerSmsLink" style="display:block;text-decoration:none">✉️ Envoyer via SMS</a>
+  </div>
+</div>
+
+<!-- "RECHERCHÉ" (WANTED ADS) — list screen -->
+<div id="wantedListModal" class="modal-backdrop hidden">
+  <div class="modal-sheet">
+    <div class="modal-head">
+      <h3>📢 Recherché</h3>
+      <button class="modal-close" data-close="wantedListModal">✕</button>
+    </div>
+    <p class="help" style="margin-top:0">Des acheteurs qui n'ont pas trouvé ce qu'ils cherchaient — si vous avez l'article, contactez-les directement.</p>
+    <button type="button" class="btn-primary btn-block" id="wantedOpenFormBtn" style="margin-bottom:.7rem">📢 Publier ce que je cherche</button>
+    <div id="wantedSellerMatchWrap" class="hidden">
+      <p class="wanted-divider-label wanted-match-divider" style="padding-left:0">🔔 Correspond à vos annonces</p>
+      <div id="wantedSellerMatchList"></div>
+    </div>
+    <div id="wantedBoostedWrap" class="hidden">
+      <p class="wanted-divider-label" style="padding-left:0">🔥 Mises en avant</p>
+      <div id="wantedBoostedRow" class="wanted-boosted-row"></div>
+    </div>
+    <p id="wantedOthersLabel" class="wanted-divider-label hidden" style="padding-left:0">Autres demandes</p>
+    <div id="wantedList"></div>
+    <p id="wantedEmptyState" class="help hidden" style="text-align:center;padding:1.2rem 0">Aucune demande pour le moment — soyez le premier à publier ce que vous cherchez !</p>
+  </div>
+</div>
+
+<!-- "RECHERCHÉ" — post / edit a wanted request -->
+<div id="wantedFormModal" class="modal-backdrop hidden">
+  <div class="modal-sheet">
+    <div class="modal-head">
+      <h3 id="wantedFormTitle">📢 Publier ce que je cherche</h3>
+      <button class="modal-close" data-close="wantedFormModal">✕</button>
+    </div>
+    <form id="wantedForm">
+      <div class="field">
+        <label>👂 Que cherchez-vous ?</label>
+        <input type="text" id="w_title" required maxlength="80" placeholder="ex: mixeur électrique" style="width:100%">
+      </div>
+      <div class="field">
+        <div style="display:flex;gap:.4rem">
+          <div style="flex:1">
+            <label>🏷️ Catégorie</label>
+            <select id="w_category" required style="width:100%"></select>
+          </div>
+          <div style="flex:1">
+            <label>💰 Budget max (GNF, facultatif)</label>
+            <input type="number" id="w_budget" min="0" step="1000" placeholder="Peu importe" style="width:100%">
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <div style="display:flex;gap:.4rem">
+          <div style="flex:1">
+            <label>📍 Ville</label>
+            <select id="w_city" required style="width:100%"></select>
+          </div>
+          <div style="flex:1" id="wantedCommuneField" class="hidden">
+            <label>📍 Commune</label>
+            <select id="w_commune" style="width:100%"></select>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label>📞 Numéro de téléphone</label>
+        <div style="display:flex;gap:.4rem">
+          <select id="w_country_code" style="flex:0 0 auto;width:auto;max-width:150px;padding:.6rem .4rem;border:1px solid var(--line);border-radius:8px;font-size:.82rem;background:#fff;color:var(--night)">
+            <option value="224">🇬🇳 Guinée (+224)</option>
+            <option value="221">Sénégal (+221)</option>
+            <option value="225">Côte d'Ivoire (+225)</option>
+            <option value="223">Mali (+223)</option>
+            <option value="232">Sierra Leone (+232)</option>
+            <option value="231">Liberia (+231)</option>
+            <option value="245">Guinée-Bissau (+245)</option>
+            <option value="33">France (+33)</option>
+            <option value="1">USA / Canada (+1)</option>
+            <option value="44">Royaume-Uni (+44)</option>
+            <option value="32">Belgique (+32)</option>
+            <option value="34">Espagne (+34)</option>
+            <option value="49">Allemagne (+49)</option>
+            <option value="other">Autre indicatif…</option>
+          </select>
+          <input type="tel" id="w_phone_local" required pattern="[0-9 \-]{6,14}" style="flex:1;padding:.6rem .7rem;border:1px solid var(--line);border-radius:8px;font-size:.85rem">
+        </div>
+        <input type="text" id="w_phone_other_code" class="hidden" required pattern="[0-9]{1,3}" placeholder="Indicatif du pays (chiffres uniquement)" style="margin-top:.4rem;width:100%;padding:.55rem .6rem;border:1px solid var(--line);border-radius:8px;font-size:.82rem">
+        <input type="hidden" id="w_phone">
+        <p class="help">Affiché aux vendeurs qui répondent à votre demande — comme sur une annonce.</p>
+      </div>
+      <div class="field">
+        <label>👤 Votre nom (facultatif)</label>
+        <input type="text" id="w_owner_name" maxlength="60" style="width:100%">
+      </div>
+      <div class="field">
+        <label>📝 Description (facultatif)</label>
+        <textarea id="w_description" maxlength="300" placeholder="Détails, marque, état recherché..."></textarea>
+      </div>
+      <button type="submit" class="btn-primary btn-block" id="wantedFormSubmitBtn">Publier ma demande</button>
+    </form>
+  </div>
+</div>
+
+<!-- "RECHERCHÉ" — boost purchase -->
+<div id="wantedBoostModal" class="modal-backdrop hidden">
+  <div class="modal-sheet">
+    <div class="modal-head">
+      <h3>🔥 Mettre en avant ma demande</h3>
+      <button class="modal-close" data-close="wantedBoostModal">✕</button>
+    </div>
+    <p class="help" style="margin-top:0">Votre demande apparaît tout en haut de la liste "Recherché", devant les demandes non mises en avant, pendant la durée choisie.</p>
+    <div class="boost-tiers" id="wantedBoostTiers"></div>
+    <p id="wantedBoostInstructions" class="fee-preview hidden"></p>
+    <div class="field">
+      <label>🧾 ID de Transaction / Référence SMS</label>
+      <input type="text" id="w_transaction_ref">
+      <p class="help">Collez ici la référence reçue par SMS après votre transfert Orange Money.</p>
+    </div>
+    <button type="button" class="btn-primary btn-block" id="confirmWantedBoostBtn" disabled>Confirmer la mise en avant</button>
+    <button type="button" class="btn-secondary btn-block" style="margin-top:.5rem" data-close="wantedBoostModal">Pas maintenant</button>
   </div>
 </div>
 
@@ -1484,6 +1680,7 @@ input,select,textarea{font-size:16px !important}
       <button class="admin-tab" data-tab="cahier-activity">📊 Activité Boutique</button>
       <button class="admin-tab" data-tab="analyse">📈 Analyse</button>
       <button class="admin-tab" data-tab="banners">🖼️ Bannières</button>
+      <button class="admin-tab" data-tab="wanted">📢 Recherché</button>
       <button class="admin-tab" data-tab="settings">⚙️ Réglages</button>
     </div>
     </div>
@@ -1632,6 +1829,20 @@ input,select,textarea{font-size:16px !important}
       <button class="btn-primary btn-block" id="saveBannersBtn" style="margin-top:.4rem">Enregistrer les bannières</button>
     </div>
 
+    <div class="admin-tab-panel hidden" data-panel="wanted">
+      <h4 style="margin:.2rem 0 .4rem">🔔 Alertes de correspondance</h4>
+      <div id="adminWantedMatchStats" class="admin-row" style="display:block"></div>
+
+      <hr style="border:none;border-top:1px solid var(--line);margin:1rem 0">
+      <h4 style="margin:.2rem 0 .4rem">📘 Mises en avant en attente</h4>
+      <div id="adminWantedPending"></div>
+
+      <hr style="border:none;border-top:1px solid var(--line);margin:1rem 0">
+      <h4 style="margin:.2rem 0 .4rem">Toutes les demandes "Recherché"</h4>
+      <input type="text" id="adminWantedSearch" placeholder="🔎 Rechercher par titre ou téléphone..." style="width:100%;padding:.5rem .6rem;border:1px solid var(--line);border-radius:8px;font-size:.82rem;margin-bottom:.5rem">
+      <div id="adminWantedList"></div>
+    </div>
+
     <div class="admin-tab-panel hidden" data-panel="settings">
       <h4 style="margin:.2rem 0 .4rem">Facebook &amp; WhatsApp</h4>
       <div class="field">
@@ -1677,6 +1888,47 @@ input,select,textarea{font-size:16px !important}
         <label>Prix Boost Facebook (GNF)</label>
         <input type="number" id="adminFbBoostFeeInput" min="0" step="1000" inputmode="numeric">
         <p class="help">Demandes reçues dans l'onglet "💳 Paiements", section "📘 Demandes de Boost Facebook".</p>
+      </div>
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:.5rem;font-weight:600">
+          <input type="checkbox" id="adminWantedEnabledCheckbox" style="width:auto" checked>
+          "Recherché" activé sur le site
+        </label>
+        <p class="help">Désactive tout le module "Recherché" (icône 📢 près de la recherche, publication, mise en avant) pour tout le monde jusqu'à ce que vous le réactiviez.</p>
+      </div>
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:.5rem;font-weight:600">
+          <input type="checkbox" id="adminWantedBoostEnabledCheckbox" style="width:auto" checked>
+          Mise en avant "Recherché" activée
+        </label>
+        <p class="help">Désactive uniquement l'option payante "🔥 Mettre en avant ma demande" — publier une demande gratuite reste possible.</p>
+      </div>
+      <div class="field">
+        <label>Prix mise en avant — 24 heures (GNF)</label>
+        <input type="number" id="adminWantedBoostFee1dInput" min="0" step="1000" inputmode="numeric">
+      </div>
+      <div class="field">
+        <label>Prix mise en avant — 3 jours (GNF)</label>
+        <input type="number" id="adminWantedBoostFee3dInput" min="0" step="1000" inputmode="numeric">
+      </div>
+      <div class="field">
+        <label>Prix mise en avant — 7 jours (GNF)</label>
+        <input type="number" id="adminWantedBoostFee7dInput" min="0" step="1000" inputmode="numeric">
+        <p class="help">Maximum 10 demandes mises en avant en même temps (voir l'onglet "📢 Recherché") — au-delà, l'option disparaît du formulaire jusqu'à ce qu'une place se libère.</p>
+      </div>
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:.5rem;font-weight:600">
+          <input type="checkbox" id="adminWantedMatchAlertsEnabledCheckbox" style="width:auto" checked>
+          Alertes de correspondance "Recherché" activées
+        </label>
+        <p class="help">Quand une annonce et une demande "Recherché" se correspondent (même catégorie + mot-clé commun dans le titre), l'acheteur voit un badge sur sa propre demande, et le vendeur concerné voit l'alerte à l'ouverture de l'application — indépendant de la mise en avant payante ci-dessus. Ceci est un rapprochement automatique, pas garanti à 100%.</p>
+      </div>
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:.5rem;font-weight:600">
+          <input type="checkbox" id="adminWantedMatchAlertsBoostedOnlyCheckbox" style="width:auto">
+          Alerte vendeur réservée aux demandes mises en avant
+        </label>
+        <p class="help">Décochée (par défaut) : tous les vendeurs concernés sont alertés, demande boostée ou non — utile pour lancer la fonctionnalité. Cochée : seules les demandes boostées déclenchent une alerte active auprès des vendeurs, ce qui devient un avantage réel du boost. Le badge côté acheteur ("un vendeur a peut-être ce que vous cherchez") reste affiché dans les deux cas — seule l'alerte poussée vers les vendeurs change.</p>
       </div>
       <button type="button" class="btn-primary btn-block" id="saveSiteSettingsBtn" style="margin-bottom:1rem">Enregistrer les réglages</button>
 
@@ -1825,6 +2077,36 @@ let FB_BOOST_FEE = 15000; // fallback until loadSiteSettings() finishes — real
 // both scoped by category). "Tout" isn't its own separate pool anymore —
 // it just mirrors everything sponsored anywhere.
 const SYSTEM_BOOST_CAP = 6;
+
+/* ---------------- "Recherché" (wanted ads) config ----------------
+   Entirely separate pool/config from Sponsorisé above — see
+   11_wanted_posts.sql. Defaults true/these fees until loadSiteSettings()
+   finishes, then admin-editable from Réglages, same pattern as
+   boostGloballyEnabled/BOOST_TIERS. */
+let wantedPostsGloballyEnabled = true;
+let wantedBoostGloballyEnabled = true;
+const WANTED_BOOST_TIERS = [
+  { days: 1, label: "24 heures", fee: 5000 },
+  { days: 3, label: "3 jours",   fee: 12000 },
+  { days: 7, label: "7 jours",   fee: 20000 },
+];
+// Single GLOBAL cap (not per-category like Sponsorisé's 6-per-category) —
+// see enforce_wanted_boost_transition in 11_wanted_posts.sql for the
+// server-side backstop that matches this number.
+const SYSTEM_WANTED_BOOST_CAP = 10;
+// Lower than listings' 8/24h (DAILY_POST_LIMIT_PER_PHONE) — repeatedly
+// posting the same "I'm looking for X" request has less legitimate reason
+// to happen often. Server-side trigger is the hard backstop; this is just
+// the friendly client-side pre-check.
+const WANTED_DAILY_POST_LIMIT_PER_PHONE = 3;
+
+// Match alerts — entirely separate concern from the boost settings above.
+// Boost only ever affects placement (top carousel). These two flags only
+// affect whether/who gets told about a category+keyword match between a
+// wanted post and a listing. See wanted_match_alerts_enabled /
+// wanted_match_alerts_boosted_only, admin-editable in Réglages.
+let wantedMatchAlertsEnabled = true;
+let wantedMatchAlertsBoostedOnly = false;
 
 const CATEGORIES = ["Électroniques","Ménage","Mode","Beauté & Cosmétique","Immobilier","Services","Auto & Moto","Alimentation","Enfants","Agricole","Sport/Loisirs","Autre"];
 const CATEGORY_ICONS = {
@@ -4487,11 +4769,34 @@ document.querySelectorAll('[data-close]').forEach(btn=>{
 
   // Event delegation on the whole document, since listing cards are
   // re-rendered constantly — a direct listener per button would be lost
-  // every time the feed refreshes.
+  // every time the feed refreshes. Also matches .wanted-contact-link (a
+  // seller responding to a "Recherché" post) — same safety-tip courtesy,
+  // but that one skips logContactEvent below: it upserts against
+  // contact_events.listing_id, which has a foreign key to listings(id),
+  // so logging a wanted_posts id there would either violate that FK or
+  // wrongly attribute the event to an unrelated listing.
   document.addEventListener('click', (e)=>{
-    const link = e.target.closest('.buyer-contact-link');
+    const link = e.target.closest('.buyer-contact-link, .wanted-contact-link');
     if(!link) return;
     if(window.fbq) fbq('track', 'Contact');
+    if(link.classList.contains('wanted-contact-link')){
+      // Only logged when the click came from the seller-match section
+      // (see renderWantedSellerMatches) — a contact from browsing the
+      // normal Recherché list isn't attributable to the match-alert
+      // feature, so it stays unlogged, same as before.
+      const matchRow = link.closest('.wanted-seller-match-row');
+      if(matchRow){
+        const post = wantedPostsCache.find(p=>p.id===matchRow.dataset.id);
+        const wasBoosted = !!(post && post.payment_status==='premium' && post.premium_expires_at && new Date(post.premium_expires_at).getTime() > Date.now());
+        logWantedMatchEvent(matchRow.dataset.id, 'seller_contact', link.dataset.method, wasBoosted);
+      }
+      if(localStorage.getItem('lmk_hide_safety_tip') === '1') return;
+      e.preventDefault();
+      pendingHref = link.href;
+      continueBtn.textContent = methodLabels[link.dataset.method] || 'Continuer';
+      openModal('safetyTipModal');
+      return;
+    }
     const isOffer = !!link.closest('#makeOfferModal');
     const contactListingId = isOffer ? pendingOfferListing?.id : link.closest('.card')?.dataset.id;
     logContactEvent(contactListingId, link.dataset.method, isOffer);
@@ -4575,6 +4880,25 @@ function logContactEvent(listingId, method, viaOffer){
   }, { onConflict: 'listing_id,method,visitor_token', ignoreDuplicates: true })
   .then(({ error })=>{
     if(error) console.error('Contact event log failed:', error);
+  });
+}
+
+// Same fire-and-forget pattern as logContactEvent above, for the
+// "Recherché" match-alert feature (see 13_wanted_match_events.sql) — lets
+// admin see, in Réglages-adjacent terms, whether the free (non-boosted)
+// side of match alerts is actually driving real contacts before deciding
+// to restrict it to boosted-only via wanted_match_alerts_boosted_only.
+function logWantedMatchEvent(wantedPostId, eventType, method, wasBoosted){
+  if(!configured || !wantedPostId || !eventType || !method) return;
+  supabase.from('wanted_match_events').upsert({
+    wanted_post_id: wantedPostId,
+    event_type: eventType,
+    method,
+    was_boosted: !!wasBoosted,
+    visitor_token: deviceToken
+  }, { onConflict: 'wanted_post_id,event_type,method,visitor_token', ignoreDuplicates: true })
+  .then(({ error })=>{
+    if(error) console.error('Wanted match event log failed:', error);
   });
 }
 
@@ -5362,7 +5686,10 @@ function renderListings(){
     // Genuinely different situation from "nothing exists at all" — there
     // may well be listings, just not matching this specific search/filter
     // combination, so the way out is clearing it, not "be the first to sell".
-    empty.innerHTML = `Aucun résultat${state.search ? ` pour "${escapeHtml(state.search)}"` : ''} avec ces filtres.<br><button type="button" class="btn-secondary" id="clearFiltersBtn" style="margin-top:.6rem">Effacer la recherche et les filtres</button>`;
+    // Also offers "Recherché" right here — the exact moment someone typed
+    // what they want and the marketplace came up empty is the highest-intent
+    // moment to invite them to post it as a request instead.
+    empty.innerHTML = `Aucun résultat${state.search ? ` pour "${escapeHtml(state.search)}"` : ''} avec ces filtres.<br><button type="button" class="btn-secondary" id="clearFiltersBtn" style="margin-top:.6rem">Effacer la recherche et les filtres</button>${wantedPostsGloballyEnabled ? `<br><button type="button" class="btn-secondary" id="emptyWantedBtn" style="margin-top:.5rem;border-color:var(--wanted);color:var(--wanted)">📢 Publier ce que je cherche</button>` : ''}`;
     document.getElementById('clearFiltersBtn')?.addEventListener('click', ()=>{
       state.search = ''; state.category = 'Tout'; state.city = 'Toutes les villes'; state.commune = 'Toutes les communes';
       state.dateFilter = 'all'; state.onlyDelivery = false;
@@ -5372,9 +5699,21 @@ function renderListings(){
       updateCategoryBtnLabel();
       renderListings();
     });
+    document.getElementById('emptyWantedBtn')?.addEventListener('click', ()=> openWantedForm());
   } else {
     empty.innerHTML = 'Aucune annonce pour le moment. Soyez le premier à vendre !';
   }
+
+  // "You've seen everything" nudge — only on the true last page of a
+  // non-empty result set, and only on the normal public browse view (not
+  // Mes annonces/favoris, which aren't "shopping" contexts). Different
+  // moment than the empty-state button above: this is for someone who
+  // browsed everything and still didn't find what they wanted, not someone
+  // whose specific search/filter came up with zero results.
+  const wantedNudge = document.getElementById('wantedNudgeCard');
+  const showNudge = wantedPostsGloballyEnabled && filtered.length > 0 && mainGridCurrentPage === totalPages
+    && !state.onlyMine && !state.onlyFavorites;
+  wantedNudge.classList.toggle('hidden', !showNudge);
 
   // Sponsored: each of the 7 categories now has its own independent cap of
   // 6 (enforced at purchase time — see SYSTEM_BOOST_CAP/countActiveBoosts).
@@ -6899,6 +7238,11 @@ async function openAdminPanel(){
   await loadAdminCahierActivity();
   await loadAdminContactStats(); // after listings — Analyse tab's top-contacted list reads adminAllListingsCache for titles
   await loadAdminInstallCount();
+  await loadAdminWantedPosts();
+  renderAdminWantedPending();
+  renderAdminWantedList();
+  await loadAdminWantedMatchStats();
+  renderAdminWantedMatchStats();
   renderAdminAnalyse();
 
   const bannersEl = document.getElementById('adminBanners');
@@ -8178,6 +8522,15 @@ async function loadSiteSettings(){
     if(Number.isFinite(rawFbFee) && rawFbFee > 0) FB_BOOST_FEE = rawFbFee;
     fbBoostGloballyEnabled = map.fb_boost_enabled !== 'false';
     updateFbBoostAvailability();
+    // "Recherché" — same admin-editable pattern as Sponsorisé/FB Boost above.
+    wantedPostsGloballyEnabled = map.wanted_posts_enabled !== 'false';
+    wantedBoostGloballyEnabled = map.wanted_boost_enabled !== 'false';
+    const wantedFeeKeyByDays = { 1: 'wanted_boost_fee_1d', 3: 'wanted_boost_fee_3d', 7: 'wanted_boost_fee_7d' };
+    WANTED_BOOST_TIERS.forEach(tier=>{
+      const raw = Number(map[wantedFeeKeyByDays[tier.days]]);
+      if(Number.isFinite(raw) && raw > 0) tier.fee = raw;
+    });
+    updateWantedQuickBtnVisibility();
     // Pre-fill the admin panel's own inputs too, so re-opening Bannières
     // shows the currently-saved values instead of blank fields.
     const fbInput = document.getElementById('adminFacebookLinkInput');
@@ -8196,6 +8549,25 @@ async function loadSiteSettings(){
     if(fee7dInput) fee7dInput.value = BOOST_TIERS.find(t=>t.days===7).fee;
     if(fbFeeInput) fbFeeInput.value = FB_BOOST_FEE;
     if(fbEnabledCheckbox) fbEnabledCheckbox.checked = fbBoostGloballyEnabled;
+    const wantedEnabledCheckbox = document.getElementById('adminWantedEnabledCheckbox');
+    const wantedBoostEnabledCheckbox = document.getElementById('adminWantedBoostEnabledCheckbox');
+    const wFee1dInput = document.getElementById('adminWantedBoostFee1dInput');
+    const wFee3dInput = document.getElementById('adminWantedBoostFee3dInput');
+    const wFee7dInput = document.getElementById('adminWantedBoostFee7dInput');
+    if(wantedEnabledCheckbox) wantedEnabledCheckbox.checked = wantedPostsGloballyEnabled;
+    if(wantedBoostEnabledCheckbox) wantedBoostEnabledCheckbox.checked = wantedBoostGloballyEnabled;
+    if(wFee1dInput) wFee1dInput.value = WANTED_BOOST_TIERS.find(t=>t.days===1).fee;
+    if(wFee3dInput) wFee3dInput.value = WANTED_BOOST_TIERS.find(t=>t.days===3).fee;
+    if(wFee7dInput) wFee7dInput.value = WANTED_BOOST_TIERS.find(t=>t.days===7).fee;
+    // "Recherché" match alerts — independent of the boost settings above
+    // (see wanted_match_alerts_enabled / _boosted_only in 13_wanted_match_alerts.sql).
+    wantedMatchAlertsEnabled = map.wanted_match_alerts_enabled !== 'false';
+    wantedMatchAlertsBoostedOnly = map.wanted_match_alerts_boosted_only === 'true';
+    const wMatchEnabledCheckbox = document.getElementById('adminWantedMatchAlertsEnabledCheckbox');
+    const wMatchBoostedOnlyCheckbox = document.getElementById('adminWantedMatchAlertsBoostedOnlyCheckbox');
+    if(wMatchEnabledCheckbox) wMatchEnabledCheckbox.checked = wantedMatchAlertsEnabled;
+    if(wMatchBoostedOnlyCheckbox) wMatchBoostedOnlyCheckbox.checked = wantedMatchAlertsBoostedOnly;
+    renderWantedBadge();
   }catch(e){ console.error('loadSiteSettings failed:', e); }
 }
 loadSiteSettings();
@@ -8208,7 +8580,14 @@ document.getElementById('saveSiteSettingsBtn').addEventListener('click', async (
   const fee7d = Number(document.getElementById('adminBoostFee7dInput').value);
   const fbFee = Number(document.getElementById('adminFbBoostFeeInput').value);
   const fbEnabled = document.getElementById('adminFbBoostEnabledCheckbox').checked;
-  for(const [label, val] of [['24 heures', fee1d], ['3 jours', fee3d], ['7 jours', fee7d], ['Boost Facebook', fbFee]]){
+  const wantedEnabled = document.getElementById('adminWantedEnabledCheckbox').checked;
+  const wantedBoostEnabled = document.getElementById('adminWantedBoostEnabledCheckbox').checked;
+  const wFee1d = Number(document.getElementById('adminWantedBoostFee1dInput').value);
+  const wFee3d = Number(document.getElementById('adminWantedBoostFee3dInput').value);
+  const wFee7d = Number(document.getElementById('adminWantedBoostFee7dInput').value);
+  const wMatchAlertsEnabled = document.getElementById('adminWantedMatchAlertsEnabledCheckbox').checked;
+  const wMatchAlertsBoostedOnly = document.getElementById('adminWantedMatchAlertsBoostedOnlyCheckbox').checked;
+  for(const [label, val] of [['24 heures', fee1d], ['3 jours', fee3d], ['7 jours', fee7d], ['Boost Facebook', fbFee], ['Recherché 24h', wFee1d], ['Recherché 3j', wFee3d], ['Recherché 7j', wFee7d]]){
     if(!Number.isFinite(val) || val <= 0){
       toast(`Prix invalide pour "${label}" — entrez un nombre supérieur à 0.`);
       return;
@@ -8224,6 +8603,13 @@ document.getElementById('saveSiteSettingsBtn').addEventListener('click', async (
       { key: 'boost_fee_7d', value: String(fee7d) },
       { key: 'fb_boost_fee', value: String(fbFee) },
       { key: 'fb_boost_enabled', value: fbEnabled ? 'true' : 'false' },
+      { key: 'wanted_posts_enabled', value: wantedEnabled ? 'true' : 'false' },
+      { key: 'wanted_boost_enabled', value: wantedBoostEnabled ? 'true' : 'false' },
+      { key: 'wanted_boost_fee_1d', value: String(wFee1d) },
+      { key: 'wanted_boost_fee_3d', value: String(wFee3d) },
+      { key: 'wanted_boost_fee_7d', value: String(wFee7d) },
+      { key: 'wanted_match_alerts_enabled', value: wMatchAlertsEnabled ? 'true' : 'false' },
+      { key: 'wanted_match_alerts_boosted_only', value: wMatchAlertsBoostedOnly ? 'true' : 'false' },
     ]);
     if(error){
       console.error('saveSiteSettings failed:', error);
@@ -8244,12 +8630,684 @@ document.getElementById('saveSiteSettingsBtn').addEventListener('click', async (
     FB_BOOST_FEE = fbFee;
     fbBoostGloballyEnabled = fbEnabled;
     updateFbBoostAvailability();
+    wantedPostsGloballyEnabled = wantedEnabled;
+    wantedBoostGloballyEnabled = wantedBoostEnabled;
+    WANTED_BOOST_TIERS.find(t=>t.days===1).fee = wFee1d;
+    WANTED_BOOST_TIERS.find(t=>t.days===3).fee = wFee3d;
+    WANTED_BOOST_TIERS.find(t=>t.days===7).fee = wFee7d;
+    updateWantedQuickBtnVisibility();
+    wantedMatchAlertsEnabled = wMatchAlertsEnabled;
+    wantedMatchAlertsBoostedOnly = wMatchAlertsBoostedOnly;
+    renderWantedBadge();
     toast('Réglages enregistrés ✅');
   }catch(e){
     console.error('saveSiteSettings failed:', e);
     toast('Erreur lors de l\'enregistrement — réessayez.');
   }
 });
+
+/* ================================================================
+   "RECHERCHÉ" (WANTED ADS)
+   A buyer who can't find something posts a free request; sellers who
+   have it respond with the same call/WhatsApp/SMS pattern as listings
+   — no unlock/paywall. Entirely separate table/dataset from listings,
+   with its own optional paid "🔥 En avant" boost (capped at 10
+   GLOBALLY, admin price/on-off editable in Réglages). See
+   11_wanted_posts.sql for the schema and server-side enforcement this
+   mirrors client-side.
+   ================================================================ */
+let wantedPostsCache = [];
+let editingWantedPost = null;
+let boostingWantedPostId = null;
+let selectedWantedBoostTier = null;
+
+/* ---------------- match alerts: buyer <-> seller, in-app only ----------------
+   Runs entirely off data already cached client-side (allListings,
+   wantedPostsCache) — no extra network round-trip, no push notifications.
+   A "match" = same category AND at least one shared significant word
+   between the two titles (accents/case-insensitive, common French filler
+   words ignored) — loose on purpose: a missed real match is worse than an
+   occasional loose one, since nothing here blocks or hides anything, it
+   only surfaces an extra hint.
+   wantedMatchAlertsEnabled     — master on/off for this whole mechanism.
+   wantedMatchAlertsBoostedOnly — when true, only BOOSTED wanted posts can
+     trigger the seller-side alert (findMatchingWantedPostsForListing).
+     The buyer-side "a listing might match your request" indicator
+     (findMatchingListingsForWantedPost) always runs regardless of this
+     flag — deliberately kept free forever, see Réglages help text. */
+const WANTED_MATCH_STOPWORDS = new Set(['de','le','la','les','un','une','des','du','pour','avec','dans','sur','et','ou','je','tu','il','elle','on','nous','vous','ils','elles','cherche','recherche','recherché','occasion','bon','bonne','etat','état','taille','neuf','neuve','svp','plz','achete','achète','acheter','vends','vend','vendre','merci','bien','tres','très']);
+function wantedMatchWords(text){
+  return (text || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // strip accents so "état"/"etat" both normalize
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length >= 3 && !WANTED_MATCH_STOPWORDS.has(w));
+}
+function wantedTitlesOverlap(a, b){
+  const wordsB = new Set(wantedMatchWords(b));
+  return wantedMatchWords(a).some(w => wordsB.has(w));
+}
+function isWantedListingMatch(post, listing){
+  return post.category === listing.category && wantedTitlesOverlap(post.title, listing.title);
+}
+// Buyer side: active listings that might satisfy MY open wanted post.
+function findMatchingListingsForWantedPost(post){
+  return allListings.filter(l => l.status === 'active' && isWantedListingMatch(post, l));
+}
+// Seller side: open wanted posts (respecting the boosted-only scope) that
+// MY active listing might satisfy.
+function eligibleWantedPostsForMatchAlerts(){
+  if(!wantedMatchAlertsBoostedOnly) return wantedPostsCache;
+  const now = Date.now();
+  return wantedPostsCache.filter(p => p.payment_status==='premium' && p.premium_expires_at && new Date(p.premium_expires_at).getTime() > now);
+}
+function findMatchingWantedPostsForListing(listing){
+  return eligibleWantedPostsForMatchAlerts().filter(p => isWantedListingMatch(p, listing));
+}
+// Total "needs your attention" count for the 📢 badge: my own wanted posts
+// that have at least one matching listing, plus how many distinct open
+// wanted posts match any of my own active listings.
+function computeWantedAlertCount(){
+  if(!wantedMatchAlertsEnabled) return 0;
+  const myWantedWithMatch = wantedPostsCache.filter(p => p.owner_token === deviceToken && findMatchingListingsForWantedPost(p).length > 0).length;
+  const myListings = allListings.filter(l => l.status === 'active' && (l.owner_token === deviceToken || isMineByListing(l)));
+  const sellerMatchedPostIds = new Set();
+  myListings.forEach(l => findMatchingWantedPostsForListing(l).forEach(p => sellerMatchedPostIds.add(p.id)));
+  return myWantedWithMatch + sellerMatchedPostIds.size;
+}
+// The red match-line shown under a buyer's OWN wanted post row/card, when
+// at least one active listing matches it. "Voir" reuses the main search
+// box rather than building a separate results view.
+function wantedMatchLineHTML(post){
+  if(!wantedMatchAlertsEnabled || post.owner_token !== deviceToken) return '';
+  const n = findMatchingListingsForWantedPost(post).length;
+  if(!n) return '';
+  return `<div class="wanted-match-line">
+    <span class="wanted-match-dot">🔔</span>
+    <span>${n} vendeur${n>1?'s':''} ${n>1?'ont':'a'} peut-être ce que vous cherchez</span>
+    <button type="button" class="wanted-match-btn" data-wanted-match-search="${escapeHtml(post.title)}" data-wanted-match-post-id="${post.id}" data-wanted-match-boosted="${post.payment_status==='premium' && post.premium_expires_at && new Date(post.premium_expires_at).getTime() > Date.now() ? '1' : '0'}">Voir</button>
+  </div>`;
+}
+
+const wCategory = document.getElementById('w_category');
+const wCity = document.getElementById('w_city');
+const wCommune = document.getElementById('w_commune');
+wCategory.innerHTML = `<option value="" disabled selected>Choisissez une catégorie</option>` + CATEGORIES.map(c=>`<option value="${c}">${CATEGORY_ICONS[c]||''} ${c}</option>`).join('');
+wCity.innerHTML = `<option value="" disabled selected>Choisissez une ville</option>` + CITIES.map(c=>`<option value="${c}">${c}</option>`).join('');
+function refreshWantedCommuneOptions(){
+  const communes = LOCATIONS[wCity.value] || [];
+  const field = document.getElementById('wantedCommuneField');
+  if(wCity.value === 'Conakry' && communes.length){
+    wCommune.innerHTML = `<option value="" disabled selected>Choisissez une commune</option>` + communes.map(c=>`<option value="${c}">${c}</option>`).join('');
+    field.classList.remove('hidden');
+  } else {
+    wCommune.innerHTML = '';
+    field.classList.add('hidden');
+  }
+}
+wCity.addEventListener('change', refreshWantedCommuneOptions);
+
+// Phone country-code picker — same combining pattern as the listing form's
+// f_country_code/f_phone_local above, just its own element ids so the two
+// forms never interfere with each other.
+const wCountryCodeSel = document.getElementById('w_country_code');
+const wPhoneLocalInput = document.getElementById('w_phone_local');
+const wPhoneOtherCodeInput = document.getElementById('w_phone_other_code');
+const wPhoneHiddenInput = document.getElementById('w_phone');
+function updateWantedPhoneCombined(){
+  const local = (wPhoneLocalInput.value || '').replace(/\D/g, '');
+  const code = wCountryCodeSel.value === 'other' ? (wPhoneOtherCodeInput.value || '').replace(/\D/g, '') : wCountryCodeSel.value;
+  wPhoneHiddenInput.value = (code && local) ? `+${code}${local}` : '';
+}
+wCountryCodeSel.addEventListener('change', ()=>{
+  const isOther = wCountryCodeSel.value === 'other';
+  wPhoneOtherCodeInput.classList.toggle('hidden', !isOther);
+  wPhoneOtherCodeInput.required = isOther;
+  updateWantedPhoneCombined();
+});
+wPhoneLocalInput.addEventListener('input', updateWantedPhoneCombined);
+wPhoneOtherCodeInput.addEventListener('input', updateWantedPhoneCombined);
+
+// Kill switch (Réglages) — hides the search-bar icon and the two "post a
+// request" nudges everywhere at once when off.
+function updateWantedQuickBtnVisibility(){
+  document.getElementById('wantedQuickBtn').classList.toggle('hidden', !wantedPostsGloballyEnabled);
+  if(!wantedPostsGloballyEnabled) document.getElementById('wantedNudgeCard').classList.add('hidden');
+}
+
+function renderWantedBadge(){
+  const badge = document.getElementById('wantedBadge');
+  const alertCount = computeWantedAlertCount();
+  if(alertCount > 0){
+    // Red variant + the alert count takes priority over the normal purple
+    // "total open requests" count — an actual match for you is more
+    // useful to see at a glance than how many requests exist in general.
+    badge.textContent = alertCount > 99 ? '99+' : String(alertCount);
+    badge.classList.remove('hidden');
+    badge.classList.add('wanted-badge-alert');
+  } else {
+    const n = wantedPostsCache.length;
+    badge.textContent = n > 99 ? '99+' : String(n);
+    badge.classList.toggle('hidden', n === 0);
+    badge.classList.remove('wanted-badge-alert');
+  }
+}
+
+async function loadWantedPosts(){
+  if(!configured) return;
+  try{
+    const { data, error } = await supabase.from('wanted_posts')
+      .select('id,title,category,budget,description,city,commune,phone_number,owner_name,owner_token,payment_status,premium_expires_at,created_at,expires_at')
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false });
+    if(error){ console.error('loadWantedPosts failed:', error); return; }
+    wantedPostsCache = data || [];
+    renderWantedBadge();
+  }catch(e){ console.error('loadWantedPosts failed:', e); }
+}
+
+function wantedTimeAgo(iso){
+  const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3600000);
+  if(h < 1) return "à l'instant";
+  if(h < 24) return `${h} h`;
+  return `${Math.floor(h/24)} j`;
+}
+
+// activeBoostCount = how many wanted_posts are currently premium OR
+// pending_verification (same definition the server-side cap trigger
+// uses) — passed in from renderWantedList so this stays a pure sync
+// function instead of each card re-querying the count itself.
+function wantedContactActionsHTML(post, activeBoostCount){
+  const isMine = post.owner_token === deviceToken;
+  if(isMine){
+    const boosted = post.payment_status === 'premium' && post.premium_expires_at && new Date(post.premium_expires_at).getTime() > Date.now();
+    const pending = post.payment_status === 'pending_verification';
+    const capFull = activeBoostCount >= SYSTEM_WANTED_BOOST_CAP;
+    let boostBtn = '';
+    if(pending){
+      boostBtn = `<span class="wanted-owner-btn" style="background:var(--stone)">⏳ En attente</span>`;
+    } else if(!boosted && wantedBoostGloballyEnabled && !capFull){
+      boostBtn = `<button type="button" class="wanted-owner-btn" style="background:var(--wanted)" data-wanted-boost="${post.id}">🔥 Booster</button>`;
+    }
+    return `
+      <button type="button" class="wanted-owner-btn" style="background:var(--azure)" data-wanted-edit="${post.id}">✏️</button>
+      <button type="button" class="wanted-owner-btn" style="background:var(--pepper)" data-wanted-delete="${post.id}">🗑️</button>
+      ${boostBtn}`;
+  }
+  const msg = `Bonjour, je réponds à votre recherche "${post.title}" sur LouraMakiti.`;
+  return `
+    <a class="act-call wanted-contact-link" data-method="call" href="tel:${escapeHtml(post.phone_number)}" title="Appeler">${CALL_ICON}</a>
+    <a class="act-whatsapp wanted-contact-link" data-method="whatsapp" href="${waLink(post.phone_number, msg)}" target="_blank" rel="noopener" title="WhatsApp">${WHATSAPP_ICON}</a>
+    <a class="act-sms wanted-contact-link" data-method="sms" href="sms:${escapeHtml(post.phone_number)}?body=${encodeURIComponent(msg)}" title="SMS">✉️</a>`;
+}
+
+function wantedBoostCardHTML(post, activeBoostCount){
+  const budgetText = post.budget ? `Jusqu'à ${gnf(post.budget)}` : 'Peu importe';
+  return `
+    <div class="wanted-boost-card" data-id="${post.id}">
+      <span class="wanted-flame-tag">🔥 En avant</span>
+      <p class="wanted-title">${escapeHtml(post.title)}</p>
+      <p class="wanted-budget">${budgetText}</p>
+      <p class="wanted-meta">${escapeHtml(post.city)} · ${wantedTimeAgo(post.created_at)}</p>
+      ${wantedMatchLineHTML(post)}
+      <div class="wanted-acts">${wantedContactActionsHTML(post, activeBoostCount)}</div>
+    </div>`;
+}
+function wantedRowHTML(post, activeBoostCount){
+  const budgetText = post.budget ? `Jusqu'à ${gnf(post.budget)}` : 'Peu importe';
+  return `
+    <div class="wanted-row" data-id="${post.id}">
+      <div class="wanted-txt">
+        <p class="wanted-title">${escapeHtml(post.title)}</p>
+        <p class="wanted-budget">${budgetText}</p>
+        <p class="wanted-meta">${escapeHtml(post.city)} · ${wantedTimeAgo(post.created_at)}</p>
+        ${wantedMatchLineHTML(post)}
+      </div>
+      <div class="wanted-acts">${wantedContactActionsHTML(post, activeBoostCount)}</div>
+    </div>`;
+}
+
+function wireWantedCardActions(container){
+  container.querySelectorAll('[data-wanted-edit]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const post = wantedPostsCache.find(p=>p.id===btn.dataset.wantedEdit);
+      if(post) openWantedForm(post);
+    });
+  });
+  container.querySelectorAll('[data-wanted-delete]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      if(!confirm('Supprimer définitivement cette demande ?')) return;
+      const { data: ok, error } = await supabase.rpc('delete_own_wanted_post', { p_id: btn.dataset.wantedDelete, p_owner_token: deviceToken });
+      if(error || !ok){ toast('Erreur — impossible de supprimer.'); return; }
+      toast('Demande supprimée.');
+      await loadWantedPosts();
+      renderWantedList();
+    });
+  });
+  container.querySelectorAll('[data-wanted-boost]').forEach(btn=>{
+    btn.addEventListener('click', ()=> openWantedBoostPicker(btn.dataset.wantedBoost));
+  });
+  // "Voir" on a buyer's own match line — reuses the main search box instead
+  // of building a separate results view, so it benefits from every filter
+  // already in place (category, city, sold/expired handling, etc).
+  container.querySelectorAll('[data-wanted-match-search]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      logWantedMatchEvent(btn.dataset.wantedMatchPostId, 'buyer_view_matches', 'view', btn.dataset.wantedMatchBoosted === '1');
+      const q = btn.dataset.wantedMatchSearch;
+      closeModal('wantedListModal');
+      const input = document.getElementById('searchInput');
+      input.value = q;
+      state.search = q.trim().toLowerCase();
+      renderListings();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  });
+}
+
+// Seller side, shown at the very top of the Recherché list: open wanted
+// posts (respecting the boosted-only scope) that match one of MY OWN
+// active listings — so a seller sees "someone wants what I'm selling"
+// the moment they open Recherché, without needing to scan the whole list.
+// Each of these posts is NOT mine, so wantedContactActionsHTML correctly
+// shows the normal call/WhatsApp/SMS buttons rather than owner controls.
+function renderWantedSellerMatches(){
+  const wrap = document.getElementById('wantedSellerMatchWrap');
+  const listEl = document.getElementById('wantedSellerMatchList');
+  if(!wantedMatchAlertsEnabled){ wrap.classList.add('hidden'); return; }
+  const myListings = allListings.filter(l => l.status === 'active' && (l.owner_token === deviceToken || isMineByListing(l)));
+  const matchesByPostId = new Map(); // wanted_post.id -> { post, listingTitles: [] }
+  myListings.forEach(l=>{
+    findMatchingWantedPostsForListing(l).forEach(p=>{
+      if(!matchesByPostId.has(p.id)) matchesByPostId.set(p.id, { post: p, listingTitles: [] });
+      matchesByPostId.get(p.id).listingTitles.push(l.title);
+    });
+  });
+  const entries = [...matchesByPostId.values()];
+  wrap.classList.toggle('hidden', entries.length === 0);
+  if(!entries.length) return;
+  const activeBoostCount = wantedPostsCache.filter(p => p.payment_status==='premium' || p.payment_status==='pending_verification').length;
+  listEl.innerHTML = entries.map(({ post, listingTitles })=>{
+    const budgetText = post.budget ? `Jusqu'à ${gnf(post.budget)}` : 'Peu importe';
+    const matchNote = `Correspond à : ${escapeHtml(listingTitles[0])}${listingTitles.length > 1 ? ` (+${listingTitles.length - 1})` : ''}`;
+    return `
+    <div class="wanted-row wanted-seller-match-row" data-id="${post.id}">
+      <div class="wanted-txt">
+        <p class="wanted-title">${escapeHtml(post.title)}</p>
+        <p class="wanted-match-note">${matchNote}</p>
+        <p class="wanted-budget">${budgetText}</p>
+        <p class="wanted-meta">${escapeHtml(post.city)} · ${wantedTimeAgo(post.created_at)}</p>
+      </div>
+      <div class="wanted-acts">${wantedContactActionsHTML(post, activeBoostCount)}</div>
+    </div>`;
+  }).join('');
+  wireWantedCardActions(listEl);
+}
+
+function renderWantedList(){
+  const now = Date.now();
+  const activeBoostCount = wantedPostsCache.filter(p => p.payment_status==='premium' || p.payment_status==='pending_verification').length;
+  const boosted = wantedPostsCache.filter(p => p.payment_status==='premium' && p.premium_expires_at && new Date(p.premium_expires_at).getTime() > now);
+  const boostedIds = new Set(boosted.map(p=>p.id));
+  const others = wantedPostsCache.filter(p => !boostedIds.has(p.id));
+
+  renderWantedSellerMatches();
+
+  const boostedWrap = document.getElementById('wantedBoostedWrap');
+  const boostedRow = document.getElementById('wantedBoostedRow');
+  boostedWrap.classList.toggle('hidden', boosted.length === 0);
+  boostedRow.innerHTML = boosted.map(p=>wantedBoostCardHTML(p, activeBoostCount)).join('');
+
+  document.getElementById('wantedOthersLabel').classList.toggle('hidden', others.length === 0 || boosted.length === 0);
+
+  const listEl = document.getElementById('wantedList');
+  listEl.innerHTML = others.map(p=>wantedRowHTML(p, activeBoostCount)).join('');
+
+  document.getElementById('wantedEmptyState').classList.toggle('hidden', wantedPostsCache.length > 0);
+
+  wireWantedCardActions(boostedRow);
+  wireWantedCardActions(listEl);
+  renderWantedBadge();
+}
+
+async function openWantedListModal(){
+  if(!configured) return toast('Configuration requise.');
+  openModal('wantedListModal');
+  await loadWantedPosts();
+  renderWantedList();
+}
+document.getElementById('wantedQuickBtn').addEventListener('click', openWantedListModal);
+document.getElementById('wantedOpenFormBtn').addEventListener('click', ()=>{ closeModal('wantedListModal'); openWantedForm(); });
+document.getElementById('wantedNudgeBtn').addEventListener('click', ()=> openWantedForm());
+
+function openWantedForm(editPost){
+  editingWantedPost = editPost || null;
+  document.getElementById('wantedFormTitle').textContent = editPost ? 'Modifier ma demande' : 'Publier ce que je cherche';
+  document.getElementById('wantedFormSubmitBtn').textContent = editPost ? 'Enregistrer' : 'Publier ma demande';
+  document.getElementById('wantedForm').reset();
+  wCommune.innerHTML = '';
+  document.getElementById('wantedCommuneField').classList.add('hidden');
+  wPhoneOtherCodeInput.classList.add('hidden');
+  if(editPost){
+    document.getElementById('w_title').value = editPost.title;
+    wCategory.value = editPost.category;
+    document.getElementById('w_budget').value = editPost.budget || '';
+    wCity.value = editPost.city;
+    refreshWantedCommuneOptions();
+    if(editPost.commune) wCommune.value = editPost.commune;
+    document.getElementById('w_owner_name').value = editPost.owner_name || '';
+    document.getElementById('w_description').value = editPost.description || '';
+    const digits = String(editPost.phone_number||'').replace(/\D/g,'');
+    const known = KNOWN_PHONE_CODES.find(c => digits.startsWith(c));
+    if(known){
+      wCountryCodeSel.value = known;
+      wPhoneLocalInput.value = digits.slice(known.length);
+    } else {
+      wCountryCodeSel.value = 'other';
+      wPhoneOtherCodeInput.classList.remove('hidden');
+      wPhoneOtherCodeInput.value = digits.slice(0,3);
+      wPhoneLocalInput.value = digits.slice(3);
+    }
+    updateWantedPhoneCombined();
+  }
+  openModal('wantedFormModal');
+}
+
+document.getElementById('wantedForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  if(!configured) return toast('Configuration requise.');
+  updateWantedPhoneCombined();
+
+  const title = document.getElementById('w_title').value.trim();
+  const category = wCategory.value;
+  const budgetRaw = document.getElementById('w_budget').value;
+  const budget = budgetRaw ? Number(budgetRaw) : null;
+  const city = wCity.value;
+  const commune = (LOCATIONS[city]||[]).length ? (wCommune.value || null) : null;
+  const phone = wPhoneHiddenInput.value;
+  const owner_name = document.getElementById('w_owner_name').value.trim() || null;
+  const description = document.getElementById('w_description').value.trim() || null;
+
+  if(!title || !category || !city || !phone){
+    toast('Merci de remplir tous les champs obligatoires.');
+    return;
+  }
+
+  const submitBtn = document.getElementById('wantedFormSubmitBtn');
+  submitBtn.disabled = true;
+  try{
+    if(editingWantedPost){
+      const { data: ok, error } = await supabase.rpc('update_own_wanted_post', {
+        p_id: editingWantedPost.id, p_owner_token: deviceToken,
+        p_updates: { title, category, budget, city, commune, phone_number: phone, owner_name, description }
+      });
+      if(error || !ok){ toast('Erreur lors de la mise à jour.'); return; }
+      toast('Demande mise à jour ✅');
+      closeModal('wantedFormModal');
+      await loadWantedPosts();
+      renderWantedList();
+      return;
+    }
+
+    // Client-side pre-checks — friendly UX only; the real backstops are
+    // enforce_wanted_daily_post_limit / enforce_wanted_boost_transition in
+    // 11_wanted_posts.sql, same two-layer pattern as the listing form.
+    const { data: sellerRow } = await supabase.from('sellers').select('banned,ban_reason').eq('phone_number', phone).maybeSingle();
+    if(sellerRow && sellerRow.banned){
+      toast(`Ce numéro a été suspendu par l'administrateur${sellerRow.ban_reason ? ' ('+sellerRow.ban_reason+')' : ''}.`);
+      return;
+    }
+    const oneDayAgoIso = new Date(Date.now() - 24*3600*1000).toISOString();
+    const { data: recentByPhone } = await supabase.from('wanted_posts')
+      .select('id').eq('phone_number', phone).gte('created_at', oneDayAgoIso);
+    if((recentByPhone||[]).length >= WANTED_DAILY_POST_LIMIT_PER_PHONE){
+      toast(`Limite quotidienne atteinte (${WANTED_DAILY_POST_LIMIT_PER_PHONE} demandes par 24h pour ce numéro). Réessayez plus tard.`);
+      return;
+    }
+
+    const { data: inserted, error } = await supabase.from('wanted_posts').insert({
+      title, category, budget, city, commune, phone_number: phone, owner_name, description, owner_token: deviceToken
+    }).select('id').single();
+    if(error){
+      console.error('wanted_posts insert failed:', error);
+      toast('Erreur lors de la publication — réessayez.');
+      return;
+    }
+    toast('Demande publiée ✅');
+    closeModal('wantedFormModal');
+    await loadWantedPosts();
+    const activeBoostCount = wantedPostsCache.filter(p => p.payment_status==='premium' || p.payment_status==='pending_verification').length;
+    if(wantedBoostGloballyEnabled && activeBoostCount < SYSTEM_WANTED_BOOST_CAP){
+      openWantedBoostPicker(inserted.id);
+    } else {
+      openWantedListModal();
+    }
+  }finally{
+    submitBtn.disabled = false;
+  }
+});
+
+function openWantedBoostPicker(postId){
+  boostingWantedPostId = postId;
+  selectedWantedBoostTier = null;
+  const tiersEl = document.getElementById('wantedBoostTiers');
+  const instructionsEl = document.getElementById('wantedBoostInstructions');
+  const confirmBtn = document.getElementById('confirmWantedBoostBtn');
+  document.getElementById('w_transaction_ref').value = '';
+  instructionsEl.classList.add('hidden');
+  confirmBtn.disabled = true;
+
+  tiersEl.innerHTML = WANTED_BOOST_TIERS.map((t,i)=>`
+    <div class="boost-tier" data-i="${i}">
+      <span>${t.label}</span>
+      <span class="tier-price">${t.fee.toLocaleString('fr-FR')} GNF</span>
+    </div>`).join('');
+
+  function selectTier(i){
+    tiersEl.querySelectorAll('.boost-tier').forEach(x=>x.classList.remove('selected'));
+    tiersEl.querySelector(`[data-i="${i}"]`).classList.add('selected');
+    selectedWantedBoostTier = WANTED_BOOST_TIERS[i];
+    instructionsEl.textContent = `Pour mettre en avant votre demande pendant ${selectedWantedBoostTier.label}, envoyez exactement ${selectedWantedBoostTier.fee.toLocaleString('fr-FR')} GNF par Orange Money au numéro de l'administrateur (${ADMIN_PHONE}). Une fois le transfert fait, collez le Numéro de Transaction ci-dessous. Après vérification de votre paiement (sous 24h), votre demande passera tout en haut de la liste "Recherché".`;
+    instructionsEl.classList.remove('hidden');
+    confirmBtn.disabled = false;
+  }
+  tiersEl.querySelectorAll('.boost-tier').forEach(el=>{
+    el.addEventListener('click', ()=> selectTier(Number(el.dataset.i)));
+  });
+
+  openModal('wantedBoostModal');
+}
+// Whether reached via the post-creation upsell or the "🔥 Booster" button
+// on an existing post, dismissing this modal (X or "Pas maintenant") always
+// lands back on the "Recherché" list so the free post is visible either
+// way — cheap to just re-open/refresh even if the list was already open
+// underneath.
+document.querySelectorAll('#wantedBoostModal [data-close="wantedBoostModal"]').forEach(btn=>{
+  btn.addEventListener('click', ()=> openWantedListModal());
+});
+document.getElementById('confirmWantedBoostBtn').addEventListener('click', async ()=>{
+  if(!selectedWantedBoostTier){ toast('Choisissez une durée.'); return; }
+  const ref = document.getElementById('w_transaction_ref').value.trim();
+  if(!ref){ toast('Veuillez saisir votre référence de transaction.'); return; }
+  const { data: ok, error } = await supabase.rpc('update_own_wanted_post', {
+    p_id: boostingWantedPostId, p_owner_token: deviceToken,
+    p_updates: {
+      payment_status: 'pending_verification',
+      transaction_reference: ref,
+      calculated_boost_fee: selectedWantedBoostTier.fee,
+      boost_duration_days: selectedWantedBoostTier.days
+    }
+  });
+  if(error || !ok){
+    toast("Erreur — impossible d'enregistrer la mise en avant (les 10 places sont peut-être déjà prises).");
+    return;
+  }
+  closeModal('wantedBoostModal');
+  toast('Mise en avant enregistrée — en attente de vérification ✅');
+  openWantedListModal();
+});
+
+/* ---------------- admin: "Recherché" moderation + boost approval ---------------- */
+let adminWantedCache = [];
+async function loadAdminWantedPosts(){
+  const { data, error } = await supabase.from('wanted_posts').select('*').order('created_at', { ascending:false });
+  if(error){ console.error('loadAdminWantedPosts failed:', error); adminWantedCache = []; return; }
+  adminWantedCache = data || [];
+}
+
+// Match-alert usage stats (see 13_wanted_match_events.sql) — the numbers
+// that actually inform when to flip wanted_match_alerts_boosted_only:
+// how much real seller-contact activity the free (non-boosted) side of
+// match alerts is driving, last 30 days.
+let adminWantedMatchEventsCache = [];
+async function loadAdminWantedMatchStats(){
+  const thirtyDaysAgoIso = new Date(Date.now() - 30*24*3600*1000).toISOString();
+  const { data, error } = await supabase.from('wanted_match_events')
+    .select('event_type,method,was_boosted,created_at')
+    .gt('created_at', thirtyDaysAgoIso);
+  if(error){ console.error('loadAdminWantedMatchStats failed:', error); adminWantedMatchEventsCache = []; return; }
+  adminWantedMatchEventsCache = data || [];
+}
+function renderAdminWantedMatchStats(){
+  const el = document.getElementById('adminWantedMatchStats');
+  if(!el) return;
+  const contacts = adminWantedMatchEventsCache.filter(e=>e.event_type==='seller_contact');
+  const freeContacts = contacts.filter(e=>!e.was_boosted).length;
+  const boostedContacts = contacts.filter(e=>e.was_boosted).length;
+  const views = adminWantedMatchEventsCache.filter(e=>e.event_type==='buyer_view_matches').length;
+  el.innerHTML = `
+    <p class="help" style="margin:0 0 .4rem">30 derniers jours — sert à décider quand cocher "Alerte vendeur réservée aux demandes mises en avant" dans Réglages.</p>
+    <p style="margin:.15rem 0"><strong>${contacts.length}</strong> contact${contacts.length>1?'s':''} vendeur déclenché${contacts.length>1?'s':''} par une alerte de correspondance — dont <strong>${freeContacts}</strong> sur des demandes gratuites et <strong>${boostedContacts}</strong> sur des demandes déjà boostées.</p>
+    <p style="margin:.15rem 0"><strong>${views}</strong> fois où un acheteur a consulté ses correspondances via "Voir".</p>
+    ${contacts.length === 0 && views === 0 ? '<p class="help" style="margin:.15rem 0">Aucune activité enregistrée pour l\'instant.</p>' : ''}
+  `;
+}
+function renderAdminWantedPending(){
+  const el = document.getElementById('adminWantedPending');
+  const rows = adminWantedCache.filter(p=>p.payment_status==='pending_verification');
+  if(!rows.length){ el.innerHTML = '<p class="help">Aucune mise en avant en attente.</p>'; return; }
+  el.innerHTML = rows.map(p=>`
+    <div class="admin-row" data-id="${p.id}">
+      <div>
+        <strong>${escapeHtml(p.title)}</strong><br>
+        Catégorie: <strong>${escapeHtml(p.category)}</strong><br>
+        Tél: ${escapeHtml(p.phone_number)}<br>
+        Référence: ${escapeHtml(p.transaction_reference||'—')}<br>
+        Frais attendu: ${gnf(p.calculated_boost_fee||0)}<br>
+        Durée demandée: ${p.boost_duration_days ? p.boost_duration_days + ' jour(s)' : '7 jours (par défaut)'}
+      </div>
+      <div class="actions">
+        <button class="btn-palm" data-wanted-approve>Approuver</button>
+        <button class="btn-danger" data-wanted-reject>Rejeter</button>
+      </div>
+    </div>`).join('');
+  el.querySelectorAll('.admin-row').forEach(row=>{
+    const id = row.dataset.id;
+    row.querySelector('[data-wanted-approve]').addEventListener('click', async ()=>{
+      const post = adminWantedCache.find(p=>p.id===id);
+      const days = post?.boost_duration_days || 7;
+      if(post){
+        const durLabel = days===1 ? '24 heures' : `${days} jours`;
+        const confirmMsg = `Bonjour ! Votre demande "${post.title}" est maintenant mise en avant sur LouraMakiti pour ${durLabel} ✅.`;
+        window.open(waLink(post.phone_number, confirmMsg), '_blank'); // opened before the await so browsers don't block it as a popup
+      }
+      const premium_expires_at = new Date(Date.now() + days*24*3600*1000).toISOString();
+      const { error } = await supabase.from('wanted_posts').update({ payment_status:'premium', premium_expires_at }).eq('id', id);
+      if(error){ toast('Erreur — les 10 places sont peut-être déjà toutes prises.'); return; }
+      await loadAdminWantedPosts();
+      renderAdminWantedPending();
+      renderAdminWantedList();
+    });
+    row.querySelector('[data-wanted-reject]').addEventListener('click', async ()=>{
+      await supabase.from('wanted_posts').update({ payment_status:'free' }).eq('id', id);
+      await loadAdminWantedPosts();
+      renderAdminWantedPending();
+      renderAdminWantedList();
+    });
+  });
+}
+function renderAdminWantedList(){
+  const el = document.getElementById('adminWantedList');
+  const search = (document.getElementById('adminWantedSearch').value||'').toLowerCase();
+  let rows = adminWantedCache;
+  if(search) rows = rows.filter(p => p.title.toLowerCase().includes(search) || p.phone_number.includes(search));
+  if(!rows.length){ el.innerHTML = '<p class="help">Aucune demande.</p>'; return; }
+  el.innerHTML = rows.map(p=>{
+    const boostedNow = p.payment_status==='premium' && p.premium_expires_at && new Date(p.premium_expires_at).getTime() > Date.now();
+    return `
+    <div class="admin-row" data-id="${p.id}">
+      <div>
+        <strong>${escapeHtml(p.title)}</strong> ${boostedNow ? '<span class="help">(en avant)</span>' : ''}<br>
+        Catégorie: ${escapeHtml(p.category)} · ${escapeHtml(p.city)}<br>
+        Tél: ${escapeHtml(p.phone_number)}<br>
+        Budget: ${p.budget ? gnf(p.budget) : 'Peu importe'}
+      </div>
+      <div class="actions">
+        ${!boostedNow && p.payment_status!=='pending_verification' ? '<button class="btn-primary" data-admin-wanted-promo-boost>🎁 Booster gratuitement</button>' : ''}
+        ${boostedNow ? '<button class="btn-secondary" data-admin-wanted-remove-boost>🚫 Retirer le boost</button>' : ''}
+        <button class="btn-danger" data-admin-wanted-delete>Supprimer</button>
+      </div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('[data-admin-wanted-delete]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const id = btn.closest('.admin-row').dataset.id;
+      if(!confirm('Supprimer définitivement cette demande (action admin) ?')) return;
+      await supabase.from('wanted_posts').delete().eq('id', id);
+      adminWantedCache = adminWantedCache.filter(p=>p.id!==id);
+      renderAdminWantedList();
+      renderAdminWantedPending();
+      loadWantedPosts(); // refresh the public-facing cache/badge too
+    });
+  });
+  // Free admin-granted boost — bypasses the buyer payment flow entirely,
+  // same escape hatch already used for listings' "🎁 Booster gratuitement"
+  // (still subject to the same 10-slot cap, enforced server-side by
+  // enforce_wanted_boost_transition regardless of which path grants it).
+  el.querySelectorAll('[data-admin-wanted-promo-boost]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const id = btn.closest('.admin-row').dataset.id;
+      const daysStr = prompt('Booster gratuitement pendant combien de jours ?', '7');
+      if(daysStr === null) return;
+      const days = parseInt(daysStr, 10);
+      if(!days || days < 1 || days > 90){ toast('Entrez un nombre de jours valide (1 à 90).'); return; }
+      const premium_expires_at = new Date(Date.now() + days*24*3600*1000).toISOString();
+      const { error } = await supabase.from('wanted_posts').update({
+        payment_status: 'premium',
+        premium_expires_at,
+        transaction_reference: 'PROMO GRATUITE — accordée par admin',
+        calculated_boost_fee: 0,
+        boost_duration_days: days
+      }).eq('id', id);
+      if(error){
+        toast(`Impossible d'accorder le boost : ${error.message || 'les 10 places sont peut-être déjà toutes prises.'}`);
+        return;
+      }
+      toast(`Boost gratuit accordé pour ${days} jour(s) ✅`);
+      await loadAdminWantedPosts();
+      renderAdminWantedList();
+      renderAdminWantedPending();
+      loadWantedPosts();
+    });
+  });
+  el.querySelectorAll('[data-admin-wanted-remove-boost]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const id = btn.closest('.admin-row').dataset.id;
+      if(!confirm('Retirer la mise en avant de cette demande ?')) return;
+      await supabase.from('wanted_posts').update({ payment_status:'free', premium_expires_at:null }).eq('id', id);
+      await loadAdminWantedPosts();
+      renderAdminWantedList();
+      renderAdminWantedPending();
+      loadWantedPosts();
+    });
+  });
+}
+document.getElementById('adminWantedSearch').addEventListener('input', renderAdminWantedList);
+
+// Runs once at load, same as the other public-facing background loads
+// (loadSiteSettings, etc.) below — the badge/nudge should reflect real
+// data as soon as the page opens, not only after someone taps 📢.
+loadWantedPosts();
 
 /* ---------------- init ---------------- */
 function shouldShowWelcomeIntro(){
@@ -8266,6 +9324,10 @@ document.getElementById('footerHowItWorks').addEventListener('click', (e)=>{
 renderBanner();
 loadBanners();
 loadAndRender().then(()=>{
+  // allListings is now populated — recompute the 📢 badge in case the
+  // independent loadWantedPosts() call above already resolved first and
+  // rendered it without seller-side match data available yet.
+  renderWantedBadge();
   // Supports the new short link format (?l=<6-char code>) and the older
   // format (?listing=<full id>) — anything already shared before this
   // change keeps working, not just new links going forward.
