@@ -3704,27 +3704,28 @@ if('serviceWorker' in navigator){
   });
 
   btn.addEventListener('click', async ()=>{
-    if(isInAppBrowser) return; // instructions-only here — nothing to prompt from inside this webview
+    // iOS Safari and the in-app-browser case both now show their real
+    // instructions directly below (no button needed — see the two
+    // branches right after this), so the only thing left for a click to
+    // actually do is trigger Chrome/Android's real native install prompt.
     if(deferredPrompt){
       deferredPrompt.prompt();
       await deferredPrompt.userChoice;
       deferredPrompt = null;
       banner.classList.add('hidden');
       localStorage.setItem('lmk_install_dismissed', '1');
-    } else if(isIOS){
-      textEl.textContent = "📲 Appuyez sur l'icône Partager en bas de Safari, puis \"Sur l'écran d'accueil\".";
-      btn.classList.add('hidden');
     }
   });
 
-  // Chrome/Android fires beforeinstallprompt on its own timing; iOS Safari
-  // never fires it, so show the banner directly with instructions instead.
-  // Facebook/Messenger/Instagram's in-app browser fires neither reliably
-  // (and couldn't install anyway even if it did), so it gets its own
-  // always-shown message ahead of both other checks, telling people to
-  // open their real browser first — same "show it directly, no button
-  // needed" treatment as the iOS case, since there's no useful action to
-  // offer from inside this webview.
+  // Chrome/Android fires beforeinstallprompt on its own timing, and that's
+  // the only case with a real "Installer" button action (a native install
+  // prompt) — so it's the only one that keeps showing the generic
+  // placeholder text + button. iOS Safari and the Facebook/Messenger/
+  // Instagram in-app browser both have no button-triggered install path at
+  // all — showing the generic text + button there just meant an extra,
+  // unexplained tap before the real (manual) instructions ever appeared.
+  // Both now show their real instructions immediately instead, with the
+  // button hidden since there's nothing for it to do.
   if(isInAppBrowser){
     textEl.textContent = isIOS
       ? "📲 Ce lien s'est ouvert dans le navigateur de Facebook/Messenger. Appuyez sur ⋯ en haut, choisissez \"Ouvrir dans Safari\", puis appuyez sur l'icône Partager et \"Sur l'écran d'accueil\"."
@@ -3732,6 +3733,8 @@ if('serviceWorker' in navigator){
     btn.classList.add('hidden');
     banner.classList.remove('hidden');
   } else if(isIOS){
+    textEl.textContent = "📲 Appuyez sur l'icône Partager en bas de Safari, puis \"Sur l'écran d'accueil\".";
+    btn.classList.add('hidden');
     banner.classList.remove('hidden');
   }
 })();
