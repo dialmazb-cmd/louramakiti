@@ -562,7 +562,11 @@ input,select,textarea{font-size:16px !important}
 }
 .wanted-boost-card .wanted-title{font-size:.76rem;font-weight:700;color:var(--night);margin:0 0 .2rem;line-height:1.25;min-height:2.1em;overflow:hidden}
 .wanted-boost-card .wanted-budget{font-size:.7rem;color:var(--wanted);font-weight:700;margin:0 0 .15rem}
-.wanted-boost-card .wanted-meta{font-size:.62rem;color:var(--stone);margin:0 0 .45rem}
+.wanted-boost-card .wanted-meta{font-size:.62rem;color:var(--stone);margin:0 0 .3rem}
+.wanted-boost-card .wanted-desc{
+  font-size:.62rem;color:var(--stone);margin:0 0 .45rem;line-height:1.3;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
 .wanted-boost-card .wanted-acts{display:flex;gap:.25rem}
 .wanted-boost-card .wanted-acts a,.wanted-boost-card .wanted-acts button{flex:1;border:none;border-radius:6px;padding:.3rem 0;font-size:.68rem;color:#fff;text-align:center;text-decoration:none}
 .wanted-divider-label{padding:.5rem .9rem .3rem;font-size:.65rem;font-weight:700;color:var(--stone);text-transform:uppercase;letter-spacing:.03em}
@@ -574,7 +578,11 @@ input,select,textarea{font-size:16px !important}
 .wanted-row .wanted-txt{flex:1;min-width:0}
 .wanted-row .wanted-txt .wanted-title{font-size:.82rem;font-weight:700;color:var(--night);margin:0 0 .15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .wanted-row .wanted-txt .wanted-budget{font-size:.72rem;color:var(--wanted);font-weight:700;margin:0 0 .1rem}
-.wanted-row .wanted-txt .wanted-meta{font-size:.65rem;color:var(--stone);margin:0}
+.wanted-row .wanted-txt .wanted-meta{font-size:.65rem;color:var(--stone);margin:0 0 .2rem}
+.wanted-row .wanted-txt .wanted-desc{
+  font-size:.68rem;color:var(--stone);margin:0;line-height:1.35;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
 .wanted-row .wanted-acts{display:flex;gap:.3rem;flex-shrink:0}
 .wanted-row .wanted-acts a,.wanted-row .wanted-acts button{
   width:30px;height:30px;border-radius:50%;border:none;color:#fff;font-size:.78rem;
@@ -8867,6 +8875,7 @@ function wantedBoostCardHTML(post, activeBoostCount){
       <p class="wanted-title">${escapeHtml(post.title)}</p>
       <p class="wanted-budget">${budgetText}</p>
       <p class="wanted-meta">${escapeHtml(post.city)} · ${wantedTimeAgo(post.created_at)}</p>
+      ${post.description ? `<p class="wanted-desc">${escapeHtml(post.description)}</p>` : ''}
       ${wantedMatchLineHTML(post)}
       <div class="wanted-acts">${wantedContactActionsHTML(post, activeBoostCount)}</div>
     </div>`;
@@ -8879,6 +8888,7 @@ function wantedRowHTML(post, activeBoostCount){
         <p class="wanted-title">${escapeHtml(post.title)}</p>
         <p class="wanted-budget">${budgetText}</p>
         <p class="wanted-meta">${escapeHtml(post.city)} · ${wantedTimeAgo(post.created_at)}</p>
+        ${post.description ? `<p class="wanted-desc">${escapeHtml(post.description)}</p>` : ''}
         ${wantedMatchLineHTML(post)}
       </div>
       <div class="wanted-acts">${wantedContactActionsHTML(post, activeBoostCount)}</div>
@@ -8954,6 +8964,7 @@ function renderWantedSellerMatches(){
         <p class="wanted-match-note">${matchNote}</p>
         <p class="wanted-budget">${budgetText}</p>
         <p class="wanted-meta">${escapeHtml(post.city)} · ${wantedTimeAgo(post.created_at)}</p>
+        ${post.description ? `<p class="wanted-desc">${escapeHtml(post.description)}</p>` : ''}
       </div>
       <div class="wanted-acts">${wantedContactActionsHTML(post, activeBoostCount)}</div>
     </div>`;
