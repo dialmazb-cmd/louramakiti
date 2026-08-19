@@ -8988,6 +8988,7 @@ function openWantedForm(editPost){
   wCommune.innerHTML = '';
   document.getElementById('wantedCommuneField').classList.add('hidden');
   wPhoneOtherCodeInput.classList.add('hidden');
+  wPhoneOtherCodeInput.required = false;
   if(editPost){
     document.getElementById('w_title').value = editPost.title;
     wCategory.value = editPost.category;
@@ -9005,6 +9006,7 @@ function openWantedForm(editPost){
     } else {
       wCountryCodeSel.value = 'other';
       wPhoneOtherCodeInput.classList.remove('hidden');
+      wPhoneOtherCodeInput.required = true;
       wPhoneOtherCodeInput.value = digits.slice(0,3);
       wPhoneLocalInput.value = digits.slice(3);
     }
