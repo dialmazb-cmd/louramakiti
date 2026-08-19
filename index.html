@@ -3686,15 +3686,25 @@ if('serviceWorker' in navigator){
   });
 
   const isIOS = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase());
+  // Facebook and Messenger both open shared links inside their own built-in
+  // "in-app browser" (a stripped-down webview, not real Safari/Chrome) —
+  // FBAN/FBAV/FB_IAB mark that webview (used by both the Facebook app and
+  // Messenger); Instagram's does the same under its own name. That webview
+  // never supports "Add to Home Screen" no matter what's tapped inside it,
+  // so the normal instructions below don't apply there — the person has to
+  // escape into their real browser first, via that webview's OWN menu, not
+  // this page's.
+  const isInAppBrowser = /FBAN|FBAV|FB_IAB|Instagram/i.test(navigator.userAgent);
 
   let deferredPrompt = null;
   window.addEventListener('beforeinstallprompt', (e)=>{
     e.preventDefault();
     deferredPrompt = e;
-    banner.classList.remove('hidden');
+    if(!isInAppBrowser) banner.classList.remove('hidden');
   });
 
   btn.addEventListener('click', async ()=>{
+    if(isInAppBrowser) return; // instructions-only here — nothing to prompt from inside this webview
     if(deferredPrompt){
       deferredPrompt.prompt();
       await deferredPrompt.userChoice;
@@ -3709,7 +3719,19 @@ if('serviceWorker' in navigator){
 
   // Chrome/Android fires beforeinstallprompt on its own timing; iOS Safari
   // never fires it, so show the banner directly with instructions instead.
-  if(isIOS){
+  // Facebook/Messenger/Instagram's in-app browser fires neither reliably
+  // (and couldn't install anyway even if it did), so it gets its own
+  // always-shown message ahead of both other checks, telling people to
+  // open their real browser first — same "show it directly, no button
+  // needed" treatment as the iOS case, since there's no useful action to
+  // offer from inside this webview.
+  if(isInAppBrowser){
+    textEl.textContent = isIOS
+      ? "📲 Ce lien s'est ouvert dans le navigateur de Facebook/Messenger. Appuyez sur ⋯ en haut, choisissez \"Ouvrir dans Safari\", puis appuyez sur l'icône Partager et \"Sur l'écran d'accueil\"."
+      : "📲 Ce lien s'est ouvert dans le navigateur de Facebook/Messenger. Appuyez sur ⋮ en haut à droite, choisissez \"Ouvrir dans Chrome\", puis suivez l'invite d'installation.";
+    btn.classList.add('hidden');
+    banner.classList.remove('hidden');
+  } else if(isIOS){
     banner.classList.remove('hidden');
   }
 })();
