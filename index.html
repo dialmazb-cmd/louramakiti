@@ -8712,6 +8712,30 @@ function isWantedListingMatch(post, listing){
 function findMatchingListingsForWantedPost(post){
   return allListings.filter(l => l.status === 'active' && isWantedListingMatch(post, l));
 }
+// The main listings search box does a plain substring match against the
+// WHOLE query — very different from the word-overlap logic above that
+// decided this was a match in the first place. Dumping the post's full,
+// possibly multi-word title into that box (e.g. "parfum abercrombie")
+// would silently return zero results the moment a matching listing's
+// title doesn't contain every one of those words verbatim (e.g. a
+// listing titled just "Parfum"). This finds the ONE actual shared
+// keyword between the post and its matches, so "Voir" is guaranteed to
+// surface the same listings that were counted in the match line.
+function wantedMatchSearchTerm(post){
+  const matches = findMatchingListingsForWantedPost(post);
+  if(!matches.length) return post.title;
+  // Pair each raw (accented, real-text) word from the post's title with
+  // its normalized form, so the RETURNED term is something that can
+  // actually appear verbatim in a listing's title — the main search box
+  // only lowercases, it never strips accents like wantedMatchWords does.
+  const rawWords = (post.title || '').toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(w => w.length >= 3);
+  const matchWordSets = matches.map(l => new Set(wantedMatchWords(l.title)));
+  for(const raw of rawWords){
+    const normalized = wantedMatchWords(raw)[0]; // same stopword/length filtering as the match logic itself
+    if(normalized && matchWordSets.some(set => set.has(normalized))) return raw;
+  }
+  return post.title;
+}
 // Seller side: open wanted posts (respecting the boosted-only scope) that
 // MY active listing might satisfy.
 function eligibleWantedPostsForMatchAlerts(){
@@ -8743,7 +8767,7 @@ function wantedMatchLineHTML(post){
   return `<div class="wanted-match-line">
     <span class="wanted-match-dot">🔔</span>
     <span>${n} vendeur${n>1?'s':''} ${n>1?'ont':'a'} peut-être ce que vous cherchez</span>
-    <button type="button" class="wanted-match-btn" data-wanted-match-search="${escapeHtml(post.title)}" data-wanted-match-post-id="${post.id}" data-wanted-match-boosted="${post.payment_status==='premium' && post.premium_expires_at && new Date(post.premium_expires_at).getTime() > Date.now() ? '1' : '0'}">Voir</button>
+    <button type="button" class="wanted-match-btn" data-wanted-match-search="${escapeHtml(wantedMatchSearchTerm(post))}" data-wanted-match-post-id="${post.id}" data-wanted-match-boosted="${post.payment_status==='premium' && post.premium_expires_at && new Date(post.premium_expires_at).getTime() > Date.now() ? '1' : '0'}">Voir</button>
   </div>`;
 }
 
