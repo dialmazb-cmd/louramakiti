@@ -1839,7 +1839,16 @@ input,select,textarea{font-size:16px !important}
 
       <hr style="border:none;border-top:1px solid var(--line);margin:1rem 0">
       <h4 style="margin:.2rem 0 .4rem">Toutes les demandes "Recherché"</h4>
+      <p class="help" style="margin-top:0">Une demande expirée est supprimée définitivement du système — utilisez "🔄 Prolonger 30 jours" avant l'expiration pour la garder active.</p>
       <input type="text" id="adminWantedSearch" placeholder="🔎 Rechercher par titre ou téléphone..." style="width:100%;padding:.5rem .6rem;border:1px solid var(--line);border-radius:8px;font-size:.82rem;margin-bottom:.5rem">
+      <div class="chips admin-wanted-period-tab" style="margin-bottom:.5rem">
+        <button class="chip admin-wanted-period-tab-btn active" data-period="all">Tout</button>
+        <button class="chip admin-wanted-period-tab-btn" data-period="day">Jour</button>
+        <button class="chip admin-wanted-period-tab-btn" data-period="week">Semaine</button>
+        <button class="chip admin-wanted-period-tab-btn" data-period="month">Mois</button>
+        <button class="chip admin-wanted-period-tab-btn" data-period="year">Année</button>
+      </div>
+      <input type="date" id="adminWantedDate" class="hidden" style="width:100%;padding:.5rem .6rem;border:1px solid var(--line);border-radius:8px;font-size:.82rem;margin-bottom:.5rem">
       <div id="adminWantedList"></div>
     </div>
 
@@ -8796,6 +8805,14 @@ function renderWantedBadge(){
 
 async function loadWantedPosts(){
   if(!configured) return;
+  // Opportunistic cleanup — no scheduled job exists (this app has no
+  // backend beyond Supabase), so instead every visitor's normal page load
+  // quietly sweeps anything already past its expires_at. Fire-and-forget:
+  // a failure here (offline, RPC not deployed yet) never blocks the
+  // actual list load below. See 15_wanted_posts_hard_expiry.sql.
+  supabase.rpc('delete_expired_wanted_posts').then(({ error })=>{
+    if(error) console.error('delete_expired_wanted_posts failed:', error);
+  });
   try{
     const { data, error } = await supabase.from('wanted_posts')
       .select('id,title,category,budget,description,city,commune,phone_number,owner_name,owner_token,payment_status,premium_expires_at,created_at,expires_at')
@@ -9152,6 +9169,12 @@ document.getElementById('confirmWantedBoostBtn').addEventListener('click', async
 /* ---------------- admin: "Recherché" moderation + boost approval ---------------- */
 let adminWantedCache = [];
 async function loadAdminWantedPosts(){
+  // Awaited (unlike the public loadWantedPosts' fire-and-forget version)
+  // so the admin list below reflects an up-to-date sweep the moment the
+  // tab opens, rather than possibly showing a request that's already
+  // past expires_at as if it were still renewable.
+  const { error: cleanupError } = await supabase.rpc('delete_expired_wanted_posts');
+  if(cleanupError) console.error('delete_expired_wanted_posts failed:', cleanupError);
   const { data, error } = await supabase.from('wanted_posts').select('*').order('created_at', { ascending:false });
   if(error){ console.error('loadAdminWantedPosts failed:', error); adminWantedCache = []; return; }
   adminWantedCache = data || [];
@@ -9228,25 +9251,39 @@ function renderAdminWantedPending(){
     });
   });
 }
+let adminWantedPeriod = 'all'; // "Toutes les demandes" is a browse/moderation list, not a daily log — defaults to Tout like Paiements/Signalements
 function renderAdminWantedList(){
   const el = document.getElementById('adminWantedList');
   const search = (document.getElementById('adminWantedSearch').value||'').toLowerCase();
   let rows = adminWantedCache;
   if(search) rows = rows.filter(p => p.title.toLowerCase().includes(search) || p.phone_number.includes(search));
+  if(adminWantedPeriod !== 'all'){
+    const dateStr = document.getElementById('adminWantedDate').value || todayKey();
+    const { start, end } = getCahierPeriodRange(adminWantedPeriod, dateStr);
+    rows = rows.filter(p=>{
+      const t = new Date(p.created_at);
+      return t >= start && t < end;
+    });
+  }
   if(!rows.length){ el.innerHTML = '<p class="help">Aucune demande.</p>'; return; }
+  const now = Date.now();
   el.innerHTML = rows.map(p=>{
-    const boostedNow = p.payment_status==='premium' && p.premium_expires_at && new Date(p.premium_expires_at).getTime() > Date.now();
+    const boostedNow = p.payment_status==='premium' && p.premium_expires_at && new Date(p.premium_expires_at).getTime() > now;
+    const daysLeft = Math.ceil((new Date(p.expires_at).getTime() - now) / 86400000);
+    const expiryLabel = daysLeft <= 0 ? "expire aujourd'hui — sera supprimée automatiquement" : `expire dans ${daysLeft} jour${daysLeft>1?'s':''}`;
     return `
     <div class="admin-row" data-id="${p.id}">
       <div>
         <strong>${escapeHtml(p.title)}</strong> ${boostedNow ? '<span class="help">(en avant)</span>' : ''}<br>
         Catégorie: ${escapeHtml(p.category)} · ${escapeHtml(p.city)}<br>
         Tél: ${escapeHtml(p.phone_number)}<br>
-        Budget: ${p.budget ? gnf(p.budget) : 'Peu importe'}
+        Budget: ${p.budget ? gnf(p.budget) : 'Peu importe'}<br>
+        <span class="help">${expiryLabel}</span>
       </div>
       <div class="actions">
         ${!boostedNow && p.payment_status!=='pending_verification' ? '<button class="btn-primary" data-admin-wanted-promo-boost>🎁 Booster gratuitement</button>' : ''}
         ${boostedNow ? '<button class="btn-secondary" data-admin-wanted-remove-boost>🚫 Retirer le boost</button>' : ''}
+        <button class="btn-secondary" data-admin-wanted-extend>🔄 Prolonger 30 jours</button>
         <button class="btn-danger" data-admin-wanted-delete>Supprimer</button>
       </div>
     </div>`;
@@ -9260,6 +9297,27 @@ function renderAdminWantedList(){
       renderAdminWantedList();
       renderAdminWantedPending();
       loadWantedPosts(); // refresh the public-facing cache/badge too
+    });
+  });
+  // Renews a request for 30 more days from right now — the only way to
+  // keep one alive past its expiry, since expired requests are hard
+  // deleted from the system (see delete_expired_wanted_posts in
+  // 15_wanted_posts_hard_expiry.sql), not just hidden like listings.
+  el.querySelectorAll('[data-admin-wanted-extend]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const id = btn.closest('.admin-row').dataset.id;
+      const newExpiry = new Date(Date.now() + 30*24*3600*1000).toISOString();
+      const { data, error } = await supabase.from('wanted_posts').update({ expires_at: newExpiry }).eq('id', id).select('id');
+      if(error || !data || !data.length){
+        toast('Impossible de prolonger — cette demande a peut-être déjà été supprimée (expirée).');
+        await loadAdminWantedPosts();
+        renderAdminWantedList();
+        return;
+      }
+      toast('Demande prolongée de 30 jours ✅');
+      await loadAdminWantedPosts();
+      renderAdminWantedList();
+      loadWantedPosts();
     });
   });
   // Free admin-granted boost — bypasses the buyer payment flow entirely,
@@ -9305,6 +9363,18 @@ function renderAdminWantedList(){
   });
 }
 document.getElementById('adminWantedSearch').addEventListener('input', renderAdminWantedList);
+document.querySelectorAll('.admin-wanted-period-tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.admin-wanted-period-tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    adminWantedPeriod = btn.dataset.period;
+    const dateInput = document.getElementById('adminWantedDate');
+    dateInput.classList.toggle('hidden', adminWantedPeriod === 'all');
+    if(adminWantedPeriod !== 'all' && !dateInput.value) dateInput.value = todayKey();
+    renderAdminWantedList();
+  });
+});
+document.getElementById('adminWantedDate').addEventListener('change', renderAdminWantedList);
 
 // Runs once at load, same as the other public-facing background loads
 // (loadSiteSettings, etc.) below — the badge/nudge should reflect real
