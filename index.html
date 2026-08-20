@@ -8542,6 +8542,12 @@ function renderAdminAllListings(){
   // have already run; openAdminPanel() is ordered so it has by the time
   // this renders.
   const { byListing: contactCountByListing } = contactCountsByListingAndPhone();
+  // A listing counts as "currently bumped" when created_at has been pushed
+  // meaningfully later than its true original post date (first_posted_at,
+  // set once at creation and never touched by anything else) — a >5s gap
+  // rules out floating-point/clock noise from a listing that was simply
+  // never bumped, where the two are set to the exact same instant.
+  const isBumped = (l) => l.first_posted_at && (new Date(l.created_at).getTime() - new Date(l.first_posted_at).getTime()) > 5000;
 
   const rowHTML = (l) => `
     <div class="admin-row" data-id="${l.id}">
@@ -8556,6 +8562,7 @@ function renderAdminAllListings(){
       <div class="actions">
         ${l.status!=='sold' && l.payment_status!=='premium' ? '<button class="btn-primary" data-admin-promo-boost>🎁 Booster gratuitement</button>' : ''}
         ${l.payment_status==='premium' ? '<button class="btn-secondary" data-admin-remove-boost>🚫 Retirer le boost</button>' : ''}
+        ${isBumped(l) ? '<button class="btn-secondary" data-admin-remove-bump>🔽 Retirer le remontage</button>' : ''}
         ${l.status!=='sold' ? '<button class="btn-danger" data-admin-sold>Marquer vendu</button>' : ''}
         <button class="btn-danger" data-admin-delete>Supprimer</button>
       </div>
@@ -8642,6 +8649,17 @@ function renderAdminAllListings(){
       }).eq('id', id);
       if(error){ toast(`Erreur : ${error.message}`); return; }
       toast('Boost retiré.');
+      await loadAdminAllListings();
+      loadAndRender();
+    });
+    row.querySelector('[data-admin-remove-bump]')?.addEventListener('click', async ()=>{
+      if(!confirm('Retirer le remontage de cette annonce ? Elle reprendra sa date de publication réelle et redescendra dans la liste.')) return;
+      const listing = adminAllListingsCache.find(x=>x.id===id);
+      const { error } = await supabase.from('listings').update({
+        created_at: listing.first_posted_at
+      }).eq('id', id);
+      if(error){ toast(`Erreur : ${error.message}`); return; }
+      toast('Remontage retiré — l\'annonce a repris sa date réelle.');
       await loadAdminAllListings();
       loadAndRender();
     });
