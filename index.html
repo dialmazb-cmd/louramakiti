@@ -7460,6 +7460,12 @@ async function openAdminPanel(){
     if(el && !el.value) el.value = today;
   });
 
+  // Contact stats load FIRST now — the Annonces and Vendeurs tabs both
+  // show a per-row/per-seller contact count (contactCountsByListingAndPhone),
+  // and both of those tabs' own load functions call their render function
+  // internally as soon as they finish, so adminContactEventsCache has to
+  // already be populated by then, not just by the time Analyse renders.
+  await loadAdminContactStats();
   await loadAdminAllListings();
   await loadAdminPending(); // after listings — its new per-category summary reads adminAllListingsCache
   await loadAdminFbBoostRequests(); // after listings — needs adminAllListingsCache for titles/links
@@ -7468,12 +7474,11 @@ async function openAdminPanel(){
   await loadAdminReports();
   await loadAdminCahierAccounts();
   await loadAdminCahierActivity();
-  await loadAdminContactStats(); // after listings — Analyse tab's top-contacted list reads adminAllListingsCache for titles
   await loadAdminInstallCount();
   await loadAdminWantedPosts();
+  await loadAdminWantedMatchStats(); // before renderAdminWantedList — same reasoning as contact stats above
   renderAdminWantedPending();
   renderAdminWantedList();
-  await loadAdminWantedMatchStats();
   renderAdminWantedMatchStats();
   renderAdminAnalyse();
 
@@ -7511,6 +7516,28 @@ async function loadAdminContactStats(){
   const { data, error } = await supabase.from('contact_events').select('listing_id, method, via_offer');
   if(error){ console.error('Contact stats load failed:', error); adminContactEventsCache = []; return; }
   adminContactEventsCache = data || [];
+}
+
+// Shared by the Annonces tab (per-listing count on each row), the
+// Vendeurs tab (per-seller total on each row), and the Analyse tab's "par
+// annonce"/"par vendeur" rankings — one place computing these so all
+// three always agree with each other instead of three separate tallies
+// that could quietly drift apart. Needs loadAdminContactStats() AND
+// loadAdminAllListings() to have already run (contact_events only stores
+// listing_id — resolving that to a seller phone requires the listing).
+function contactCountsByListingAndPhone(){
+  const listingsById = new Map(adminAllListingsCache.map(l=>[l.id, l]));
+  const byListing = new Map();
+  const byPhone = new Map();
+  adminContactEventsCache.forEach(ev=>{
+    byListing.set(ev.listing_id, (byListing.get(ev.listing_id) || 0) + 1);
+    const listing = listingsById.get(ev.listing_id);
+    if(listing){
+      const key = normalizePhone(listing.phone_number);
+      byPhone.set(key, (byPhone.get(key) || 0) + 1);
+    }
+  });
+  return { byListing, byPhone };
 }
 
 // Android install count for the Analyse tab — see the 'appinstalled'
@@ -7730,6 +7757,11 @@ function renderAdminSellers(){
 
   rows = rows.filter(s => !q || s.phone_number.includes(q));
   if(!rows.length){ el.innerHTML = '<p class="help">Aucun vendeur trouvé.</p>'; return; }
+  // Total contacts across ALL of a seller's listings — always the lifetime
+  // total regardless of the "période" filter above (that filter is about
+  // which sellers appear, not about re-scoping how many contacts each one
+  // has ever received).
+  const { byPhone: contactCountByPhone } = contactCountsByListingAndPhone();
   el.innerHTML = rows.map(s=>{
     const badge = sellerActivityBadge(s.phone_number, s.total_posts); // pass count directly, see helper below
     const lifetimePosts = s.period_scoped ? s.lifetime_total_posts : s.total_posts;
@@ -7747,6 +7779,7 @@ function renderAdminSellers(){
         Code secret ${s.pin_mixed ? '(annonce la plus récente)' : ''} : <strong>${s.pin ? escapeHtml(s.pin) : '— (non défini)'}</strong>
         ${s.pin_mixed ? ` <span style="color:var(--pepper)">⚠️ codes différents selon l'annonce</span>` : ''}<br>
         Annonces publiées ${s.period_scoped ? '(période)' : '(à vie)'} : ${s.total_posts}<br>
+        📞 Contacts reçus (toutes annonces, à vie) : <strong>${contactCountByPhone.get(normalizePhone(s.phone_number)) || 0}</strong><br>
         Vendeur depuis le ${firstSeen}
       </div>
       <div class="actions">
@@ -8063,18 +8096,34 @@ function renderAdminAnalyse(){
   // is the only way to confirm from the admin panel that it's actually live.
   const totalsByMethod = { call: 0, whatsapp: 0, sms: 0 };
   const viaOfferByMethod = { whatsapp: 0, sms: 0 };
-  const byListing = {};
   adminContactEventsCache.forEach(ev=>{
     if(totalsByMethod[ev.method] !== undefined) totalsByMethod[ev.method]++;
     if(ev.via_offer && viaOfferByMethod[ev.method] !== undefined) viaOfferByMethod[ev.method]++;
-    byListing[ev.listing_id] = (byListing[ev.listing_id] || 0) + 1;
   });
-  const topContactedHtml = Object.entries(byListing)
+  // Most-recent listing per phone (adminAllListingsCache is already sorted
+  // newest-first) — just used to put a name next to a phone number below,
+  // doesn't need to be more precise than "whatever they called themselves
+  // most recently".
+  const latestListingByPhone = new Map();
+  adminAllListingsCache.forEach(l=>{
+    const key = normalizePhone(l.phone_number);
+    if(!latestListingByPhone.has(key)) latestListingByPhone.set(key, l);
+  });
+  const { byListing: contactsByListing, byPhone: contactsByPhone } = contactCountsByListingAndPhone();
+  const topContactedHtml = [...contactsByListing.entries()]
     .sort((a,b) => b[1]-a[1])
     .slice(0, 10)
     .map(([listingId, count])=>{
       const listing = adminAllListingsCache.find(l => l.id === listingId);
       const label = listing ? escapeHtml(listing.title) : '(annonce supprimée)';
+      return `<div class="stats-row"><span>${label}</span><span>${count}</span></div>`;
+    }).join('') || '<p class="help">Aucun contact enregistré pour le moment.</p>';
+  const topSellersHtml = [...contactsByPhone.entries()]
+    .sort((a,b) => b[1]-a[1])
+    .slice(0, 10)
+    .map(([phone, count])=>{
+      const latest = latestListingByPhone.get(phone);
+      const label = latest && latest.owner_name ? `${escapeHtml(latest.owner_name)} (${escapeHtml(latest.phone_number)})` : escapeHtml(phone);
       return `<div class="stats-row"><span>${label}</span><span>${count}</span></div>`;
     }).join('') || '<p class="help">Aucun contact enregistré pour le moment.</p>';
 
@@ -8084,8 +8133,10 @@ function renderAdminAnalyse(){
       <div><small>Total des contacts</small><br><strong style="color:var(--azure)">${adminContactEventsCache.length}</strong></div>
       <div><small>Répartition par méthode</small><br><span class="help" style="margin:0">📞 Appels ${totalsByMethod.call} · 💬 WhatsApp ${totalsByMethod.whatsapp} (dont ${viaOfferByMethod.whatsapp} via Négocier) · ✉️ SMS ${totalsByMethod.sms} (dont ${viaOfferByMethod.sms} via Négocier)</span></div>
     </div>
-    <p class="help" style="margin:.5rem 0 .2rem;font-weight:700">Annonces les plus contactées</p>
+    <p class="help" style="margin:.5rem 0 .2rem;font-weight:700">Par annonce (top 10)</p>
     ${topContactedHtml}
+    <p class="help" style="margin:.5rem 0 .2rem;font-weight:700">Par vendeur — toutes ses annonces cumulées (top 10)</p>
+    ${topSellersHtml}
   `;
 
   // Installations Android — see the 'appinstalled' listener + install_events
@@ -8439,6 +8490,11 @@ function renderAdminAllListings(){
   adminAllListingsCache.forEach(l=>{
     listingCountByPhone.set(l.phone_number, (listingCountByPhone.get(l.phone_number) || 0) + 1);
   });
+  // Per-listing contact count, right on each row — see
+  // contactCountsByListingAndPhone(). Requires loadAdminContactStats() to
+  // have already run; openAdminPanel() is ordered so it has by the time
+  // this renders.
+  const { byListing: contactCountByListing } = contactCountsByListingAndPhone();
 
   const rowHTML = (l) => `
     <div class="admin-row" data-id="${l.id}">
@@ -8448,6 +8504,7 @@ function renderAdminAllListings(){
         Prix: ${gnf(l.price)} · ${l.category}<br>
         Tél: ${escapeHtml(l.phone_number)}<br>
         Nom: ${l.owner_name ? escapeHtml(l.owner_name) : '— (non défini)'}<br>
+        📞 Contacts reçus : <strong>${contactCountByListing.get(l.id) || 0}</strong>
       </div>
       <div class="actions">
         ${l.status!=='sold' && l.payment_status!=='premium' ? '<button class="btn-primary" data-admin-promo-boost>🎁 Booster gratuitement</button>' : ''}
@@ -9436,25 +9493,104 @@ async function loadAdminWantedPosts(){
 // match alerts is driving, last 30 days.
 let adminWantedMatchEventsCache = [];
 async function loadAdminWantedMatchStats(){
-  const thirtyDaysAgoIso = new Date(Date.now() - 30*24*3600*1000).toISOString();
+  // No date filter here anymore — the 30-day summary line below still
+  // exists (computed client-side from this same cache) for deciding the
+  // boosted-only toggle, but the "par demande"/"par vendeur" breakdowns
+  // are genuinely all-time, same as the regular-listings contacts section.
   const { data, error } = await supabase.from('wanted_match_events')
-    .select('event_type,method,was_boosted,created_at')
-    .gt('created_at', thirtyDaysAgoIso);
+    .select('wanted_post_id,event_type,method,was_boosted,created_at');
   if(error){ console.error('loadAdminWantedMatchStats failed:', error); adminWantedMatchEventsCache = []; return; }
   adminWantedMatchEventsCache = data || [];
+}
+
+// Same idea as contactCountsByListingAndPhone() above, for the Recherché
+// side — shared by the admin Recherché list (per-request count on each
+// row) and the "par demande"/"par vendeur" rankings in
+// renderAdminWantedMatchStats(). Only counts seller_contact events — a
+// buyer_view_matches ("Voir") isn't someone contacting them, so it's
+// deliberately excluded from a "contacts reçus" count. Needs
+// loadAdminWantedMatchStats() AND loadAdminWantedPosts() to have already run.
+// Each entry is { total, free, boosted } — not just a plain count — so
+// admin can see AT A GLANCE, per request or per buyer, how much of that
+// activity came while the request was boosted vs free. was_boosted is
+// recorded on the event itself at the moment of the contact (see
+// logWantedMatchEvent), so this stays accurate even after a request's
+// boost later expires.
+function wantedContactCountsByPostAndPhone(){
+  const postsById = new Map(adminWantedCache.map(p=>[p.id, p]));
+  const byPost = new Map();
+  const byPhone = new Map();
+  const bump = (map, key) => {
+    const cur = map.get(key) || { total: 0, free: 0, boosted: 0 };
+    return cur;
+  };
+  adminWantedMatchEventsCache.filter(e=>e.event_type==='seller_contact').forEach(ev=>{
+    const postEntry = bump(byPost, ev.wanted_post_id);
+    postEntry.total++;
+    if(ev.was_boosted) postEntry.boosted++; else postEntry.free++;
+    byPost.set(ev.wanted_post_id, postEntry);
+    const post = postsById.get(ev.wanted_post_id);
+    if(post){
+      const key = normalizePhone(post.phone_number);
+      const phoneEntry = bump(byPhone, key);
+      phoneEntry.total++;
+      if(ev.was_boosted) phoneEntry.boosted++; else phoneEntry.free++;
+      byPhone.set(key, phoneEntry);
+    }
+  });
+  return { byPost, byPhone };
 }
 function renderAdminWantedMatchStats(){
   const el = document.getElementById('adminWantedMatchStats');
   if(!el) return;
-  const contacts = adminWantedMatchEventsCache.filter(e=>e.event_type==='seller_contact');
-  const freeContacts = contacts.filter(e=>!e.was_boosted).length;
-  const boostedContacts = contacts.filter(e=>e.was_boosted).length;
-  const views = adminWantedMatchEventsCache.filter(e=>e.event_type==='buyer_view_matches').length;
+  const thirtyDaysAgoMs = Date.now() - 30*24*3600*1000;
+  const recent = adminWantedMatchEventsCache.filter(e => new Date(e.created_at).getTime() > thirtyDaysAgoMs);
+  const contacts30d = recent.filter(e=>e.event_type==='seller_contact');
+  const freeContacts = contacts30d.filter(e=>!e.was_boosted).length;
+  const boostedContacts = contacts30d.filter(e=>e.was_boosted).length;
+  const views30d = recent.filter(e=>e.event_type==='buyer_view_matches').length;
+
+  // All-time breakdowns — "par demande" (which wanted post got the most
+  // seller contacts) and "par vendeur" (the buyer who POSTED the request,
+  // totaled across every request they've ever posted) — same idea as the
+  // "par annonce"/"par vendeur" split just above for regular listings.
+  const latestPostByPhone = new Map(); // adminWantedCache is sorted newest-first
+  adminWantedCache.forEach(p=>{
+    const key = normalizePhone(p.phone_number);
+    if(!latestPostByPhone.has(key)) latestPostByPhone.set(key, p);
+  });
+  const { byPost, byPhone: byBuyerPhone } = wantedContactCountsByPostAndPhone();
+  // "X (Y gratuit · Z boosté)" instead of a single blended number — by
+  // default this now always shows the free/boosted split, same as the
+  // 30-day summary line above it, rather than a total tally that hides
+  // which side of the toggle is actually driving the activity.
+  const splitLabel = (c) => `${c.total} (${c.free} gratuit · ${c.boosted} boosté)`;
+  const topPostsHtml = [...byPost.entries()]
+    .sort((a,b)=>b[1].total-a[1].total)
+    .slice(0, 10)
+    .map(([postId, c])=>{
+      const post = adminWantedCache.find(p=>p.id===postId);
+      const label = post ? escapeHtml(post.title) : '(demande supprimée)';
+      return `<div class="stats-row"><span>${label}</span><span>${splitLabel(c)}</span></div>`;
+    }).join('') || '<p class="help">Aucun contact enregistré pour le moment.</p>';
+  const topBuyersHtml = [...byBuyerPhone.entries()]
+    .sort((a,b)=>b[1].total-a[1].total)
+    .slice(0, 10)
+    .map(([phone, c])=>{
+      const latest = latestPostByPhone.get(phone);
+      const label = latest && latest.owner_name ? `${escapeHtml(latest.owner_name)} (${escapeHtml(latest.phone_number)})` : escapeHtml(phone);
+      return `<div class="stats-row"><span>${label}</span><span>${splitLabel(c)}</span></div>`;
+    }).join('') || '<p class="help">Aucun contact enregistré pour le moment.</p>';
+
   el.innerHTML = `
     <p class="help" style="margin:0 0 .4rem">30 derniers jours — sert à décider quand cocher "Alerte vendeur réservée aux demandes mises en avant" dans Réglages.</p>
-    <p style="margin:.15rem 0"><strong>${contacts.length}</strong> contact${contacts.length>1?'s':''} vendeur déclenché${contacts.length>1?'s':''} par une alerte de correspondance — dont <strong>${freeContacts}</strong> sur des demandes gratuites et <strong>${boostedContacts}</strong> sur des demandes déjà boostées.</p>
-    <p style="margin:.15rem 0"><strong>${views}</strong> fois où un acheteur a consulté ses correspondances via "Voir".</p>
-    ${contacts.length === 0 && views === 0 ? '<p class="help" style="margin:.15rem 0">Aucune activité enregistrée pour l\'instant.</p>' : ''}
+    <p style="margin:.15rem 0"><strong>${contacts30d.length}</strong> contact${contacts30d.length>1?'s':''} vendeur déclenché${contacts30d.length>1?'s':''} par une alerte de correspondance — dont <strong>${freeContacts}</strong> sur des demandes gratuites et <strong>${boostedContacts}</strong> sur des demandes déjà boostées.</p>
+    <p style="margin:.15rem 0"><strong>${views30d}</strong> fois où un acheteur a consulté ses correspondances via "Voir".</p>
+    ${contacts30d.length === 0 && views30d === 0 ? '<p class="help" style="margin:.15rem 0">Aucune activité enregistrée pour l\'instant (30 derniers jours).</p>' : ''}
+    <p class="help" style="margin:.6rem 0 .2rem;font-weight:700">Par demande — tout l'historique (top 10)</p>
+    ${topPostsHtml}
+    <p class="help" style="margin:.5rem 0 .2rem;font-weight:700">Par vendeur (acheteur) — toutes ses demandes cumulées, tout l'historique (top 10)</p>
+    ${topBuyersHtml}
   `;
 }
 function renderAdminWantedPending(){
@@ -9517,6 +9653,11 @@ function renderAdminWantedList(){
   }
   if(!rows.length){ el.innerHTML = '<p class="help">Aucune demande.</p>'; return; }
   const now = Date.now();
+  // Per-request contact count, right on each row — see
+  // wantedContactCountsByPostAndPhone(). Requires loadAdminWantedMatchStats()
+  // to have already run; openAdminPanel() is ordered so it has by the time
+  // this renders.
+  const { byPost: wantedContactCountByPost } = wantedContactCountsByPostAndPhone();
   el.innerHTML = rows.map(p=>{
     const boostedNow = p.payment_status==='premium' && p.premium_expires_at && new Date(p.premium_expires_at).getTime() > now;
     const daysLeft = Math.ceil((new Date(p.expires_at).getTime() - now) / 86400000);
@@ -9528,6 +9669,7 @@ function renderAdminWantedList(){
         Catégorie: ${escapeHtml(p.category)} · ${escapeHtml(p.city)}<br>
         Tél: ${escapeHtml(p.phone_number)}<br>
         Budget: ${p.budget ? gnf(p.budget) : 'Peu importe'}<br>
+        📞 Contacts reçus : <strong>${(wantedContactCountByPost.get(p.id) || {}).total || 0}</strong><br>
         <span class="help">${expiryLabel}</span>
       </div>
       <div class="actions">
