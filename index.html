@@ -170,6 +170,11 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .btn-danger{background:transparent;color:var(--pepper);border:1px solid var(--pepper);font-weight:700;border-radius:999px;padding:.4rem .7rem;font-size:.78rem}
 .btn-palm{background:var(--palm);color:#fff;border:none;font-weight:700;border-radius:999px;padding:.4rem .7rem;font-size:.78rem}
 .btn-block{width:100%;padding:.75rem;border-radius:var(--radius);font-weight:700;font-size:.95rem}
+.btn-bump{background:var(--mango);color:var(--night);border:none;font-weight:700;border-radius:999px;padding:.4rem .7rem;font-size:.78rem}
+.btn-bump-cooldown{background:#EFEBDD;color:var(--stone);border:none;font-weight:700;border-radius:999px;padding:.4rem .7rem;font-size:.78rem;cursor:default}
+.bump-note{font-size:.62rem;color:var(--stone);margin:.3rem 0 0;padding:0 .05rem;line-height:1.4;flex-basis:100%}
+.bump-note strong{color:var(--palm)}
+.bump-note.wait strong{color:var(--stone)}
 
 /* ---- search + filters ---- */
 .searchbar{padding:.7rem .9rem 0;display:flex;gap:.5rem;align-items:center}
@@ -1924,6 +1929,14 @@ input,select,textarea{font-size:16px !important}
       </div>
 
       <hr style="border:none;border-top:1px solid var(--line);margin:1rem 0">
+      <h4 style="margin:.2rem 0 .4rem">🔝 Remonter en tête (gratuit)</h4>
+      <div class="field">
+        <label>Délai entre deux remontées gratuites, par annonce (jours)</label>
+        <input type="number" id="adminBumpCooldownDaysInput" min="0" step="1" inputmode="numeric" placeholder="0">
+        <p class="help">Mettez <strong>0</strong> pour un remontage illimité (recommandé au lancement, pour encourager l'activité pendant que "Mettre en avant" n'est pas encore utilisé). Mettez par exemple <strong>3</strong> une fois que vous aurez de vrais utilisateurs, pour limiter le remontage à une fois tous les 3 jours par annonce. Ce changement s'applique immédiatement, sans mise à jour du code.</p>
+      </div>
+
+      <hr style="border:none;border-top:1px solid var(--line);margin:1rem 0">
       <h4 style="margin:.2rem 0 .4rem">Prix des boosts</h4>
       <div class="field">
         <label style="display:flex;align-items:center;gap:.5rem;font-weight:600">
@@ -2073,6 +2086,24 @@ const ADMIN_EMAIL = "contact@louramakiti.com";
 // Max new listings a single phone number can post in a rolling 24h window.
 // Slows down spam/bulk-posting without affecting genuine sellers.
 const DAILY_POST_LIMIT_PER_PHONE = 8;
+
+// Free "🔝 Remonter en tête" bump: how often a seller can push their own
+// listing back to the top of the main grid (for free — see bumpListing()).
+// Reuses created_at as both the sort key AND the cooldown gate, so bumping
+// is just "set created_at = now()" — no separate column needed.
+// Admin-editable via Bannières tab (site_settings.bump_cooldown_days) — see
+// loadSiteSettings() below. 0 means unlimited (no cooldown at all), which is
+// the default until the admin explicitly sets a positive number of days —
+// intentional so a fresh install (or one where this setting was never
+// touched) behaves as "unlimited" without requiring any admin action.
+let bumpCooldownMs = 0;
+// Returns { eligible, nextAt } for a given listing's bump button state.
+function listingBumpState(l){
+  if(bumpCooldownMs <= 0) return { eligible: true, nextAt: 0 };
+  const createdMs = new Date(l.created_at).getTime();
+  const nextAt = createdMs + bumpCooldownMs;
+  return { eligible: Date.now() >= nextAt, nextAt };
+}
 
 // Country codes offered in the phone picker, longest-first so a reverse
 // lookup (splitting a saved number back into code + local part when
@@ -5588,6 +5619,9 @@ function cardHTML(l, opts){
 
   const favActive = isFavorited(l.id);
 
+  const bumpState = (showOwnerControls && !sold) ? listingBumpState(l) : null;
+  const bumpDaysLeft = bumpState && !bumpState.eligible ? Math.max(1, Math.ceil((bumpState.nextAt - Date.now()) / 86400000)) : 0;
+
   return `
   <div class="card ${premium?'premium':''} ${sold?'sold':''} ${detail?'detail-card':''}" data-id="${l.id}">
     <div class="card-media">
@@ -5638,9 +5672,13 @@ function cardHTML(l, opts){
         ${!sold ? `<button class="btn-danger" data-action="sold">Marquer comme Vendu</button>` : ''}
         <button class="btn-danger" data-action="delete">Supprimer</button>
         ${!sold ? `<button class="btn-palm" data-action="extend">Prolonger (30 jours)</button>` : ''}
+        ${bumpState && bumpState.eligible ? `<button class="btn-bump" data-action="bump">🔝 Remonter en tête</button>` : ''}
+        ${bumpState && !bumpState.eligible ? `<button class="btn-bump-cooldown" disabled>🔝 Disponible dans ${bumpDaysLeft} j</button>` : ''}
         ${!sold ? `<a class="btn-secondary" style="background:#1877F2;color:#fff" href="https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(location.origin+'/?l='+(l.short_code||l.id))}" target="_blank" rel="noopener">📘 Facebook</a>` : ''}
         ${!sold ? `<a class="act-whatsapp" href="https://wa.me/?text=${encodeURIComponent(shareMsg)}" target="_blank" rel="noopener">💬 WhatsApp</a>` : ''}
-      </div>` : ''}
+      </div>
+      ${bumpState && bumpState.eligible ? `<p class="bump-note">📤 <strong>Disponible maintenant</strong> — remet votre annonce tout en haut de la liste, gratuitement.</p>` : ''}
+      ${bumpState && !bumpState.eligible ? `<p class="bump-note wait">⏳ <strong>Disponible dans ${bumpDaysLeft} jour${bumpDaysLeft>1?'s':''}</strong> — déjà remontée récemment.</p>` : ''}` : ''}
     </div>
   </div>`;
 }
@@ -6135,6 +6173,7 @@ function attachCardHandlers(container, opts){
     card.querySelector('[data-action="delete"]')?.addEventListener('click', ()=>deleteListing(listing));
     card.querySelector('[data-action="sold"]')?.addEventListener('click', ()=>markSold(listing));
     card.querySelector('[data-action="extend"]')?.addEventListener('click', ()=>extendListing(listing));
+    card.querySelector('[data-action="bump"]')?.addEventListener('click', ()=>bumpListing(listing));
     if(openOnClick){
       card.addEventListener('click', (e)=>{
         if(e.target.closest('a, button, .dot')) return; // let links/buttons/dots do their own thing
@@ -6917,6 +6956,14 @@ async function extendListing(listing){
   });
   if(error || !ok) return toast('Erreur (hors-ligne, ou cette annonce ne vous appartient pas).');
   toast('Annonce prolongée de 30 jours et de nouveau visible.');
+  loadAndRender();
+}
+async function bumpListing(listing){
+  const { data: ok, error } = await supabase.rpc('bump_own_listing', {
+    p_id: listing.id, p_owner_token: deviceToken, p_pin: getVerifiedPin()
+  });
+  if(error || !ok) return toast('Erreur — pas encore disponible, hors-ligne, ou cette annonce ne vous appartient pas.');
+  toast(`"${listing.title}" remontée en tête de liste !`);
   loadAndRender();
 }
 
@@ -8793,6 +8840,17 @@ async function loadSiteSettings(){
       fbLink.rel = 'noopener';
       facebookLinkLoaded = true;
     }
+    // Free bump cooldown — 0/missing/invalid all mean "unlimited" (see
+    // bumpCooldownMs's own comment above). Re-render so any already-drawn
+    // "Mes Annonces" cards immediately reflect a changed setting.
+    const rawBumpDays = Number(map.bump_cooldown_days);
+    const newBumpCooldownMs = (Number.isFinite(rawBumpDays) && rawBumpDays > 0) ? rawBumpDays * 24 * 3600 * 1000 : 0;
+    if(newBumpCooldownMs !== bumpCooldownMs){
+      bumpCooldownMs = newBumpCooldownMs;
+      if(state.onlyMine) renderListings();
+    }
+    const bumpCooldownInput = document.getElementById('adminBumpCooldownDaysInput');
+    if(bumpCooldownInput) bumpCooldownInput.value = map.bump_cooldown_days != null ? map.bump_cooldown_days : 0;
     // Defaults to enabled (true) unless the admin has explicitly switched
     // it off — so a fresh install with no site_settings row yet behaves
     // exactly like it always did.
@@ -8876,11 +8934,16 @@ document.getElementById('saveSiteSettingsBtn').addEventListener('click', async (
   const wFee7d = Number(document.getElementById('adminWantedBoostFee7dInput').value);
   const wMatchAlertsEnabled = document.getElementById('adminWantedMatchAlertsEnabledCheckbox').checked;
   const wMatchAlertsBoostedOnly = document.getElementById('adminWantedMatchAlertsBoostedOnlyCheckbox').checked;
+  const bumpCooldownDays = Number(document.getElementById('adminBumpCooldownDaysInput').value);
   for(const [label, val] of [['24 heures', fee1d], ['3 jours', fee3d], ['7 jours', fee7d], ['Boost Facebook', fbFee], ['Recherché 24h', wFee1d], ['Recherché 3j', wFee3d], ['Recherché 7j', wFee7d]]){
     if(!Number.isFinite(val) || val <= 0){
       toast(`Prix invalide pour "${label}" — entrez un nombre supérieur à 0.`);
       return;
     }
+  }
+  if(!Number.isFinite(bumpCooldownDays) || bumpCooldownDays < 0){
+    toast('Délai de remontage invalide — entrez 0 (illimité) ou un nombre de jours.');
+    return;
   }
   try{
     const { error } = await supabase.from('site_settings').upsert([
@@ -8899,6 +8962,7 @@ document.getElementById('saveSiteSettingsBtn').addEventListener('click', async (
       { key: 'wanted_boost_fee_7d', value: String(wFee7d) },
       { key: 'wanted_match_alerts_enabled', value: wMatchAlertsEnabled ? 'true' : 'false' },
       { key: 'wanted_match_alerts_boosted_only', value: wMatchAlertsBoostedOnly ? 'true' : 'false' },
+      { key: 'bump_cooldown_days', value: String(bumpCooldownDays) },
     ]);
     if(error){
       console.error('saveSiteSettings failed:', error);
@@ -8928,6 +8992,8 @@ document.getElementById('saveSiteSettingsBtn').addEventListener('click', async (
     wantedMatchAlertsEnabled = wMatchAlertsEnabled;
     wantedMatchAlertsBoostedOnly = wMatchAlertsBoostedOnly;
     renderWantedBadge();
+    bumpCooldownMs = bumpCooldownDays > 0 ? bumpCooldownDays * 24 * 3600 * 1000 : 0;
+    if(state.onlyMine) renderListings();
     toast('Réglages enregistrés ✅');
   }catch(e){
     console.error('saveSiteSettings failed:', e);
