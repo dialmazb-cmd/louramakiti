@@ -5249,7 +5249,7 @@ function updateLensChips(){
     btn.classList.toggle('active', btn.dataset.lens === state.lens);
   });
   const nearbyBtn = document.getElementById('lensNearbyBtn');
-  nearbyBtn.textContent = nearbyCity ? `📍 ${nearbyCommune || nearbyCity}` : '📍 Près de vous';
+  nearbyBtn.textContent = (state.lens === 'nearby' && nearbyCity) ? `📍 ${nearbyCommune || nearbyCity}` : '📍 Près de vous';
 }
 lensRowEl.addEventListener('click', (e)=>{
   const btn = e.target.closest('.chip[data-lens]');
