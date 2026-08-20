@@ -177,14 +177,14 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .bump-note.wait strong{color:var(--stone)}
 
 /* ---- search + filters ---- */
-.searchbar{padding:.7rem .9rem 0;display:flex;gap:.5rem;align-items:center}
+.searchbar{padding:.55rem .9rem 0;display:flex;gap:.35rem;align-items:center}
 .searchbar input{
-  flex:1;width:100%;padding:.6rem .8rem;border:1px solid var(--line);border-radius:999px;
-  font-size:.9rem;background:#fff;color:var(--night);
+  flex:1;width:100%;padding:.48rem .7rem;border:1px solid var(--line);border-radius:999px;
+  font-size:.8rem;background:#fff;color:var(--night);
 }
 .fav-quick-btn{
-  flex:0 0 auto;width:42px;height:42px;border-radius:50%;border:1.5px solid var(--stone);
-  background:#fff;font-size:1.1rem;display:flex;align-items:center;justify-content:center;
+  flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:1.5px solid var(--stone);
+  background:#fff;font-size:.92rem;display:flex;align-items:center;justify-content:center;
   box-shadow:0 1px 4px rgba(27,31,59,.1);
 }
 .fav-quick-btn.favorited{border-color:var(--pepper);background:#FCEAE7}
@@ -709,6 +709,35 @@ input,select,textarea{font-size:16px !important}
   <button id="favoritesQuickBtn" class="fav-quick-btn" aria-label="Mes favoris">🤍</button>
   <button id="shareAppBtn" class="fav-quick-btn" aria-label="Partager l'application" title="Partager l'application">↗️</button>
   <button id="wantedQuickBtn" class="fav-quick-btn wanted-badge-btn" aria-label="Recherché" title="Recherché — annonces demandées par des acheteurs">📢<span id="wantedBadge" class="cahier-credit-badge hidden">0</span></button>
+</div>
+
+<!-- Homepage browsing lenses — "Tout" (today's default), "Près de vous"
+     (favorite city/commune, remembered on this device), "Populaire"
+     (real contact activity, hides itself if there's not enough data yet).
+     Re-sorts/narrows the same "🛍️ Annonces" grid below — the Sponsorisé
+     row above it is untouched either way. Hidden entirely while viewing
+     Mes Annonces/Favoris, same as the Sponsorisé row. -->
+<div class="chips" id="lensRow">
+  <button type="button" class="chip active" data-lens="tout">Tout</button>
+  <button type="button" class="chip" data-lens="nearby" id="lensNearbyBtn">📍 Près de vous</button>
+  <button type="button" class="chip hidden" data-lens="popular" id="lensPopularBtn">🔥 Populaire</button>
+</div>
+
+<!-- "Près de vous" one-time (then editable) city picker -->
+<div id="nearbyCityModal" class="modal-backdrop hidden">
+  <div class="modal-sheet">
+    <div class="modal-head"><h3>📍 Quelle est votre ville ?</h3><button class="modal-close" data-close="nearbyCityModal">✕</button></div>
+    <p class="help" style="margin-top:0">Pour vous montrer les annonces les plus proches de vous. Retapez "📍 Près de vous" à tout moment pour la changer.</p>
+    <div class="field">
+      <label>Ville</label>
+      <select id="nearbyCitySelect" class="modal-select"></select>
+    </div>
+    <div class="field" id="nearbyCommuneField">
+      <label>Commune (optionnel)</label>
+      <select id="nearbyCommuneSelect" class="modal-select"></select>
+    </div>
+    <button type="button" id="nearbyCitySaveBtn" class="btn-primary btn-block">Voir les annonces près de moi</button>
+  </div>
 </div>
 
 <!-- CATEGORY PANEL -->
@@ -5112,7 +5141,21 @@ const fCommune = document.getElementById('f_commune');
 const communeField = document.getElementById('communeField');
 fCategory.addEventListener('change', ()=> updateBoostAvailability());
 
-let state = { category: 'Tout', city: 'Toutes les villes', commune: 'Toutes les communes', search: '', dateFilter: 'all', sort: 'recent', onlyMine: false, onlyFavorites: false, onlyDelivery: false };
+let state = { category: 'Tout', city: 'Toutes les villes', commune: 'Toutes les communes', search: '', dateFilter: 'all', sort: 'recent', onlyMine: false, onlyFavorites: false, onlyDelivery: false, lens: 'tout' };
+
+// ---------------- homepage browsing lenses (Tout / Près de vous / Populaire) ----------------
+// Deliberately kept separate from state.city/state.commune above (the
+// Filtres selection) — activating "Près de vous" never silently
+// overwrites a city someone chose on purpose in Filtres, and switching
+// back to "Tout" never loses it either. "Près de vous" keeps its own
+// remembered city/commune, persisted on this device only.
+let nearbyCity = localStorage.getItem('lmk_nearby_city') || null;
+let nearbyCommune = localStorage.getItem('lmk_nearby_commune') || ''; // '' = toutes communes de cette ville
+// listing_id -> contact_count (last 7 days, >=2 contacts) — see
+// popular_listing_ids() in 19_popular_listings.sql. Empty until
+// loadPopularListings() resolves; the "🔥 Populaire" chip stays hidden
+// until it has at least one qualifying listing.
+let popularListingIds = new Map();
 
 function updateCategoryBtnLabel(){
   categoryBtnEl.innerHTML = state.category === 'Tout'
@@ -5165,6 +5208,83 @@ cityFilterEl.addEventListener('change', ()=>{
   loadAndRender();
 });
 communeFilterEl.addEventListener('change', ()=>{ state.commune = communeFilterEl.value; loadAndRender(); });
+
+/* ---------------- lens row: Tout / Près de vous / Populaire ---------------- */
+const lensRowEl = document.getElementById('lensRow');
+const nearbyCitySelect = document.getElementById('nearbyCitySelect');
+const nearbyCommuneSelect = document.getElementById('nearbyCommuneSelect');
+const nearbyCommuneField = document.getElementById('nearbyCommuneField');
+nearbyCitySelect.innerHTML = CITIES.map(c=>`<option value="${c}">${c}</option>`).join('');
+function refreshNearbyCommuneOptions(){
+  const communes = LOCATIONS[nearbyCitySelect.value] || [];
+  if(communes.length){
+    nearbyCommuneSelect.innerHTML = `<option value="">Toutes les communes</option>` +
+      communes.map(c=>`<option value="${c}">${c}</option>`).join('');
+    nearbyCommuneField.classList.remove('hidden');
+  } else {
+    nearbyCommuneField.classList.add('hidden');
+  }
+}
+nearbyCitySelect.addEventListener('change', refreshNearbyCommuneOptions);
+
+function openNearbyCityPicker(){
+  nearbyCitySelect.value = nearbyCity || 'Conakry';
+  refreshNearbyCommuneOptions();
+  if(!nearbyCommuneField.classList.contains('hidden')) nearbyCommuneSelect.value = nearbyCommune || '';
+  openModal('nearbyCityModal');
+}
+document.getElementById('nearbyCitySaveBtn').addEventListener('click', ()=>{
+  nearbyCity = nearbyCitySelect.value;
+  nearbyCommune = nearbyCommuneField.classList.contains('hidden') ? '' : nearbyCommuneSelect.value;
+  localStorage.setItem('lmk_nearby_city', nearbyCity);
+  localStorage.setItem('lmk_nearby_commune', nearbyCommune);
+  state.lens = 'nearby';
+  updateLensChips();
+  closeModal('nearbyCityModal');
+  renderListings();
+});
+
+function updateLensChips(){
+  lensRowEl.querySelectorAll('.chip[data-lens]').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.lens === state.lens);
+  });
+  const nearbyBtn = document.getElementById('lensNearbyBtn');
+  nearbyBtn.textContent = nearbyCity ? `📍 ${nearbyCommune || nearbyCity}` : '📍 Près de vous';
+}
+lensRowEl.addEventListener('click', (e)=>{
+  const btn = e.target.closest('.chip[data-lens]');
+  if(!btn) return;
+  const lens = btn.dataset.lens;
+  if(lens === 'nearby'){
+    // No saved city yet, OR already on this lens (tap again = change it)
+    if(!nearbyCity || state.lens === 'nearby'){ openNearbyCityPicker(); return; }
+    state.lens = 'nearby';
+  } else {
+    state.lens = lens; // 'tout' or 'popular'
+  }
+  updateLensChips();
+  renderListings();
+});
+
+// Aggregated-only, admin-read-restricted contact_events stays gated to
+// authenticated (see 16_analytics_tables_grants.sql) — this RPC is the
+// one deliberate public exception, returning nothing but listing_id +
+// a count (see 19_popular_listings.sql), safe for any visitor to read.
+async function loadPopularListings(){
+  if(!configured) return;
+  try{
+    const { data, error } = await supabase.rpc('popular_listing_ids', { p_days: 7, p_min_contacts: 2 });
+    if(error){ console.error('loadPopularListings failed:', error); return; }
+    popularListingIds = new Map((data||[]).map(r=>[r.listing_id, r.contact_count]));
+    document.getElementById('lensPopularBtn').classList.toggle('hidden', popularListingIds.size === 0);
+    if(state.lens === 'popular' && popularListingIds.size === 0){
+      state.lens = 'tout';
+      updateLensChips();
+      renderListings();
+    }
+  }catch(e){ console.error('loadPopularListings failed:', e); }
+}
+
 // Returning visitor with an already-verified phone+PIN on this device —
 // re-check ownership server-side (never trust the locally-stored PIN by
 // itself) so "Mes annonces" / owner controls work without an extra tap.
@@ -5637,6 +5757,7 @@ function cardHTML(l, opts){
       ${premium && !sold ?'<span class="card-badge">Sponsorisé</span>':''}
       ${sold ? '<span class="card-badge sold-badge">✅ Vendu</span>' : ''}
       ${isExpired && showOwnerControls ? '<span class="card-badge sold-badge" style="background:var(--pepper)">⏰ Expiré</span>' : ''}
+      ${state.lens === 'popular' && popularListingIds.has(l.id) ? `<span class="card-badge sold-badge" style="background:#FBE3DD;color:var(--pepper)">🔥 ${popularListingIds.get(l.id)}</span>` : ''}
       ${cardMediaHTML(l, detail)}
       <button type="button" class="fav-btn ${favActive?'favorited':''}" data-fav-id="${l.id}" aria-label="Ajouter aux favoris">${favActive?'❤️':'🤍'}</button>
     </div>
@@ -5925,7 +6046,7 @@ let lastFilterSignature = null;
 
 function renderListings(){
   clearGalleryAutoTimers(); // stop any previous auto-rotating photo galleries before replacing the DOM
-  const signature = JSON.stringify([state.category, state.city, state.commune, state.dateFilter, state.sort, state.onlyMine, state.onlyFavorites, state.search, state.onlyDelivery]);
+  const signature = JSON.stringify([state.category, state.city, state.commune, state.dateFilter, state.sort, state.onlyMine, state.onlyFavorites, state.search, state.onlyDelivery, state.lens, nearbyCity, nearbyCommune]);
   if(signature !== lastFilterSignature){
     mainGridCurrentPage = 1; // any filter change (including "Effacer les filtres") starts back at page 1
     lastFilterSignature = signature;
@@ -5936,9 +6057,21 @@ function renderListings(){
   // the regular grid (still clearly marked with the "Sponsorisé" badge in
   // both places) — sponsoring adds extra visibility on top of the normal
   // listing, rather than relocating it.
-  if(state.sort === 'price_asc') filtered = [...filtered].sort((a,b)=>a.price-b.price);
+  // Homepage lens — narrows (never replaces) whatever matchesFilters already
+  // let through, exactly like an extra filter would. "Tout" leaves this
+  // untouched, so it stays byte-for-byte the same behavior as before the
+  // lens row existed.
+  if(state.lens === 'nearby' && nearbyCity){
+    filtered = filtered.filter(l => nearbyCommune ? l.commune === nearbyCommune : l.city === nearbyCity);
+  } else if(state.lens === 'popular'){
+    filtered = filtered.filter(l => popularListingIds.has(l.id));
+  }
+  if(state.lens === 'popular'){
+    filtered = [...filtered].sort((a,b)=> (popularListingIds.get(b.id)||0) - (popularListingIds.get(a.id)||0));
+  } else if(state.sort === 'price_asc') filtered = [...filtered].sort((a,b)=>a.price-b.price);
   else if(state.sort === 'price_desc') filtered = [...filtered].sort((a,b)=>b.price-a.price);
 
+  lensRowEl.classList.toggle('hidden', state.onlyMine || state.onlyFavorites);
   updateMyShopLinkCard();
 
   const grid = document.getElementById('listingsGrid');
@@ -5961,6 +6094,12 @@ function renderListings(){
   } else if(state.onlyMine){
     empty.innerHTML = `Vous n'avez pas encore publié d'annonce depuis cet appareil.<br><button type="button" class="btn-secondary" id="emptyPhoneAccessBtn" style="margin-top:.6rem">🔑 Retrouver une annonce via mon téléphone</button>`;
     document.getElementById('emptyPhoneAccessBtn')?.addEventListener('click', openPhoneAccessFlow);
+  } else if(state.lens === 'nearby' && !hasActiveFilter){
+    empty.innerHTML = `Aucune annonce près de ${escapeHtml(nearbyCommune || nearbyCity)} pour le moment.<br><button type="button" class="btn-secondary" id="lensBackToAllBtn" style="margin-top:.6rem">Voir toutes les annonces</button>`;
+    document.getElementById('lensBackToAllBtn')?.addEventListener('click', ()=>{ state.lens = 'tout'; updateLensChips(); renderListings(); });
+  } else if(state.lens === 'popular' && !hasActiveFilter){
+    empty.innerHTML = `Pas encore assez d'activité pour classer les annonces populaires.<br><button type="button" class="btn-secondary" id="lensBackToAllBtn2" style="margin-top:.6rem">Voir toutes les annonces</button>`;
+    document.getElementById('lensBackToAllBtn2')?.addEventListener('click', ()=>{ state.lens = 'tout'; updateLensChips(); renderListings(); });
   } else if(hasActiveFilter){
     // Genuinely different situation from "nothing exists at all" — there
     // may well be listings, just not matching this specific search/filter
@@ -8945,6 +9084,8 @@ async function loadSiteSettings(){
   }catch(e){ console.error('loadSiteSettings failed:', e); }
 }
 loadSiteSettings();
+loadPopularListings();
+updateLensChips();
 document.getElementById('saveSiteSettingsBtn').addEventListener('click', async ()=>{
   const fbLink = document.getElementById('adminFacebookLinkInput').value.trim();
   const waNumber = document.getElementById('adminWhatsappNumberInput').value.trim().replace(/\D/g, '');
