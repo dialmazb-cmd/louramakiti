@@ -4981,18 +4981,11 @@ document.addEventListener('click', (e)=>{
 // actual tel:/wa.me/sms: handoff, and a failed insert (offline, etc.)
 // leaves the contact button working exactly as before.
 function logContactEvent(listingId, method, viaOffer){
-  // TEMPORARY DEBUG AID (remove once "contacts stuck at 0" is confirmed
-  // fixed): normally this whole function is silent on purpose (fire-and-
-  // forget, never interrupts the tel:/wa.me/sms: handoff even if logging
-  // fails) — these two toasts are added ONLY to surface, directly on
-  // screen, exactly what's failing during this investigation, since there's
-  // no way to check the browser console on a phone.
-  if(!configured || !listingId || !method){
-    toast(`(Debug) Contact non suivi — configured=${configured}, listingId=${listingId}, method=${method}`);
-    return;
-  }
-  // Plain insert instead of upsert(...{onConflict}) — the unique constraint
-  // (listing_id, method, visitor_token) still silently rejects a repeat
+  if(!configured || !listingId || !method) return;
+  // Plain insert (not upsert+onConflict — that combination turned out to
+  // silently fail against Supabase's API for reasons never fully pinned
+  // down, confirmed via real-device testing). The unique constraint
+  // (listing_id, method, visitor_token) still quietly rejects a repeat
   // click from the same visitor (Postgres error 23505 "duplicate key"),
   // which is treated as a normal, expected outcome below, not an error.
   supabase.from('contact_events').insert({
@@ -5002,10 +4995,7 @@ function logContactEvent(listingId, method, viaOffer){
     visitor_token: deviceToken
   })
   .then(({ error })=>{
-    if(error && error.code !== '23505'){
-      console.error('Contact event log failed:', error);
-      toast(`(Debug) Échec de l'enregistrement du contact : ${error.message || error.code || 'erreur inconnue'}`);
-    }
+    if(error && error.code !== '23505') console.error('Contact event log failed:', error);
   });
 }
 
