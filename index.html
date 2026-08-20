@@ -4991,14 +4991,18 @@ function logContactEvent(listingId, method, viaOffer){
     toast(`(Debug) Contact non suivi — configured=${configured}, listingId=${listingId}, method=${method}`);
     return;
   }
-  supabase.from('contact_events').upsert({
+  // Plain insert instead of upsert(...{onConflict}) — the unique constraint
+  // (listing_id, method, visitor_token) still silently rejects a repeat
+  // click from the same visitor (Postgres error 23505 "duplicate key"),
+  // which is treated as a normal, expected outcome below, not an error.
+  supabase.from('contact_events').insert({
     listing_id: listingId,
     method,
     via_offer: !!viaOffer,
     visitor_token: deviceToken
-  }, { onConflict: 'listing_id,method,visitor_token', ignoreDuplicates: true })
+  })
   .then(({ error })=>{
-    if(error){
+    if(error && error.code !== '23505'){
       console.error('Contact event log failed:', error);
       toast(`(Debug) Échec de l'enregistrement du contact : ${error.message || error.code || 'erreur inconnue'}`);
     }
@@ -5012,15 +5016,18 @@ function logContactEvent(listingId, method, viaOffer){
 // to restrict it to boosted-only via wanted_match_alerts_boosted_only.
 function logWantedMatchEvent(wantedPostId, eventType, method, wasBoosted){
   if(!configured || !wantedPostId || !eventType || !method) return;
-  supabase.from('wanted_match_events').upsert({
+  // Same switch as logContactEvent above — plain insert, relying on the
+  // unique constraint to silently reject a repeat click (23505) instead of
+  // using upsert(...{onConflict}).
+  supabase.from('wanted_match_events').insert({
     wanted_post_id: wantedPostId,
     event_type: eventType,
     method,
     was_boosted: !!wasBoosted,
     visitor_token: deviceToken
-  }, { onConflict: 'wanted_post_id,event_type,method,visitor_token', ignoreDuplicates: true })
+  })
   .then(({ error })=>{
-    if(error) console.error('Wanted match event log failed:', error);
+    if(error && error.code !== '23505') console.error('Wanted match event log failed:', error);
   });
 }
 
