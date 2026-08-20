@@ -467,6 +467,41 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .detail-description{
   font-size:.85rem;color:var(--night);line-height:1.5;margin:.3rem 0 .6rem;white-space:pre-line;
 }
+
+/* ---- public seller page ---- */
+.seller-page-hero{
+  background:linear-gradient(135deg,var(--night),#2b2f57);padding:1.3rem 1rem 1.5rem;
+  color:#fff;text-align:center;border-radius:16px 16px 0 0;
+}
+.seller-page-avatar{
+  width:60px;height:60px;border-radius:50%;background:var(--mango);color:var(--night);
+  display:flex;align-items:center;justify-content:center;font-size:1.5rem;font-weight:800;
+  margin:0 auto .5rem;border:3px solid #fff;
+}
+.seller-page-name{font-size:1.05rem;font-weight:800;margin:0 0 .15rem}
+.seller-page-sub{font-size:.72rem;color:#d8d6e6;margin:0 0 .6rem}
+.seller-page-trust{display:flex;justify-content:center;gap:.4rem;flex-wrap:wrap;margin-bottom:.85rem}
+.seller-page-chip{
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:999px;
+  padding:.26rem .55rem;font-size:.64rem;font-weight:700;
+}
+.seller-page-chip.gold{background:rgba(246,201,14,.18);border-color:var(--mango);color:var(--mango)}
+.seller-page-acts{display:flex;gap:.5rem}
+.seller-page-acts a{
+  flex:1;border:none;border-radius:999px;padding:.55rem 0;font-size:.74rem;font-weight:700;
+  display:flex;align-items:center;justify-content:center;gap:.3rem;text-decoration:none;color:#fff;
+}
+.seller-page-body{padding:.9rem 1rem 1.2rem}
+.seller-page-share{
+  display:flex;align-items:center;justify-content:space-between;gap:.5rem;background:var(--cotton);
+  border:1px solid var(--line);border-radius:10px;padding:.55rem .7rem;margin-bottom:1rem;
+}
+.seller-page-share small{display:block;color:var(--stone);font-size:.62rem}
+.seller-page-link-card{
+  background:var(--cotton);border:1px solid var(--palm);border-radius:12px;padding:.75rem .85rem;margin:0 .9rem .8rem;
+}
+.seller-page-link-card strong{display:block;color:var(--night);font-size:.82rem;margin-bottom:.3rem}
+.seller-page-link-card .link-val{font-size:.7rem;color:var(--stone);word-break:break-all;display:block;margin-bottom:.5rem}
 .modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem}
 #cahierMainModal .modal-head{position:sticky;top:0;background:#fff;z-index:3;padding-bottom:.5rem}
 .modal-head h3{margin:0;font-size:1.05rem}
@@ -683,6 +718,14 @@ input,select,textarea{font-size:16px !important}
   <span>👤 Vous consultez : Mes annonces</span>
   <button type="button" id="onlyMineRecoverBtn" style="background:none;border:none;text-decoration:underline;color:var(--pepper);font-size:.75rem;cursor:pointer;margin-right:.4rem;font-weight:700">🔑 Pas toutes vos annonces ?</button>
   <button id="exitOnlyMineBtn">✕ Voir toutes les annonces</button>
+</div>
+
+<!-- Shareable public-shop link — only shown under "Mes annonces", only once
+     the device has at least one listing to derive a phone number from. -->
+<div id="myShopLinkCard" class="seller-page-link-card hidden">
+  <strong>🔗 Votre boutique publique</strong>
+  <span class="link-val" id="myShopLinkVal"></span>
+  <button type="button" class="btn-palm" id="myShopShareBtn" style="width:100%">📤 Partager ma boutique</button>
 </div>
 
 <div id="favoritesBanner" class="only-mine-banner hidden">
@@ -975,6 +1018,14 @@ input,select,textarea{font-size:16px !important}
       <h2 class="section-label">Annonces similaires</h2>
       <div id="similarListingsGrid" class="grid"></div>
     </section>
+  </div>
+</div>
+
+<!-- PUBLIC SELLER PAGE (shareable, no ownership needed — see openSellerPage) -->
+<div id="sellerPageModal" class="modal-backdrop hidden">
+  <div class="modal-sheet detail-sheet">
+    <button class="modal-close detail-close" data-close="sellerPageModal">✕</button>
+    <div id="sellerPageContent"></div>
   </div>
 </div>
 
@@ -4881,6 +4932,17 @@ document.addEventListener('click', (e)=>{
   shareListingWithImage({ title: listing.title, price: listing.price, image_url: listing.image_url }, shareMsg);
 });
 
+// "🏪 Voir toute la boutique de ..." link on a listing's detail view — opens
+// the public seller page for whoever posted it (see openSellerPage below).
+// Delegated at document level since this link can appear inside content
+// swapped in and out of listingDetailModal repeatedly.
+document.addEventListener('click', (e)=>{
+  const btn = e.target.closest('.shop-link-btn');
+  if(!btn) return;
+  e.preventDefault();
+  openSellerPage(btn.dataset.sellerPhone);
+});
+
 // Logs which of the 4 reach-out options (Appeler/WhatsApp/SMS/Négocier) a
 // buyer used on a listing, for the admin panel's "Contacts vendeurs" stats
 // — same "one per device per listing" idea as the report logging just
@@ -5446,8 +5508,18 @@ function matchesFilters(l){
   }
   if(state.onlyDelivery && !l.delivery_available) return false;
   if(state.search){
-    const hay = (l.title + ' ' + (l.description||'')).toLowerCase();
-    if(!hay.includes(state.search)) return false;
+    // Word-by-word, accent-insensitive matching instead of one literal
+    // phrase match — e.g. "sac femme" now finds "Sac à main pour femme"
+    // (words in a different order, extra words in between), and "cafe"
+    // finds "Café" (accents ignored both sides). Every word the buyer
+    // typed still has to appear somewhere, just not as one exact
+    // contiguous phrase — a single-word search behaves exactly as
+    // before. See wantedMatchWords for the same accent-stripping idea,
+    // used here without its stopword/length filtering since a short
+    // deliberate search term (a size like "42", "TV") should still work.
+    const hay = normalizeSearchText(l.title + ' ' + (l.description||''));
+    const queryWords = normalizeSearchText(state.search).split(/\s+/).filter(Boolean);
+    if(!queryWords.every(w => hay.includes(w))) return false;
   }
   return true;
 }
@@ -5512,6 +5584,7 @@ function cardHTML(l, opts){
   const sellerDays = sellerSinceMs ? Math.floor((Date.now()-sellerSinceMs)/86400000) : 0;
   const sellerSinceLabel = sellerDays >= 1 ? `Vendeur depuis ${sellerDays} jour${sellerDays>1?'s':''}` : null;
   const sellerBadge = sellerActivityBadge(l.phone_number);
+  const shopLinkName = l.owner_name ? escapeHtml(l.owner_name) : 'ce vendeur';
 
   const favActive = isFavorited(l.id);
 
@@ -5534,6 +5607,7 @@ function cardHTML(l, opts){
       ${!plainImageOnly && detail && l.delivery_available ? `<div class="card-meta">🚚 Livraison possible</div>` : ''}
       ${!plainImageOnly && count > 0 ? `<div class="card-stars">${starLabel(avg, count)}</div>` : ''}
       ${!plainImageOnly && detail ? `<div class="card-meta seller-since ${sellerBadge.cls}">${sellerVerifiedByPhone.get(normalizePhone(l.phone_number)) ? '✅ ' : ''}${sellerBadge.text}${sellerSinceLabel ? ' · ' + sellerSinceLabel : ''}</div>` : ''}
+      ${!plainImageOnly && detail && !showOwnerControls ? `<a class="card-meta shop-link-btn" data-seller-phone="${escapeHtml(l.phone_number)}" style="display:inline-block;color:var(--azure);font-weight:700;text-decoration:underline;cursor:pointer;margin:.15rem 0 .35rem">🏪 Voir toute la boutique de ${shopLinkName}</a>` : ''}
       ${!plainImageOnly && detail ? `<p class="detail-description">${escapeHtml(l.description || 'Aucune description fournie.').replace(/\n/g,'<br>')}</p>` : ''}
 
       ${!sold && !showOwnerControls ? `
@@ -5575,6 +5649,13 @@ function escapeHtml(s){
   return String(s||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
+// Lowercase + accent-stripped, for search matching only (never for
+// display) — "café"/"cafe", "évier"/"evier" etc. compare equal either
+// way someone types it.
+function normalizeSearchText(s){
+  return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 function openListingDetail(listing){
   clearGalleryAutoTimers();
   const el = document.getElementById('detailContent');
@@ -5590,6 +5671,138 @@ function openListingDetail(listing){
     currency: 'GNF'
   });
 }
+
+/* ---------------- public seller page ---------------- */
+// A seller's page is keyed by their phone number (last 9 digits, same
+// tolerant comparison used everywhere else in the app), not a separate
+// slug/id — the phone number is already public on every listing (it's what
+// the Appeler/WhatsApp buttons use), so this exposes nothing new, and
+// needs no new database column, table, or lookup. No login, no ownership
+// check: anyone with the link can view it, same as any listing link.
+function sellerPageUrl(phone){
+  return `${location.origin}/?v=${normalizePhone(phone)}`;
+}
+
+function openSellerPage(phone){
+  const normalized = normalizePhone(phone);
+  if(!normalized) return;
+  const allTheirListings = allListings.filter(l => normalizePhone(l.phone_number) === normalized);
+  const sellerListings = allTheirListings.filter(l => matchesFiltersForShop(l));
+  if(!allTheirListings.length){
+    toast("Cette boutique n'est plus disponible.");
+    return;
+  }
+  clearGalleryAutoTimers();
+  // No separate seller-profile record exists — the most recent listing
+  // supplies the display name/city shown in the hero, same source
+  // sellerActivityBadge/cardHTML already lean on elsewhere.
+  const latest = [...allTheirListings].sort((a,b)=> new Date(b.created_at)-new Date(a.created_at))[0];
+  const refPhone = latest.phone_number;
+  const displayName = latest.owner_name ? latest.owner_name : 'Vendeur LouraMakiti';
+  const initial = displayName.trim().charAt(0).toUpperCase() || '🛍️';
+  const rating = ratingsByPhone.get(refPhone);
+  const avg = rating ? rating.sum/rating.count : 0;
+  const count = rating ? rating.count : 0;
+  const totalPosts = sellerTotalPostsByPhone.has(normalized) ? sellerTotalPostsByPhone.get(normalized) : sellerListings.length;
+  const sellerSinceMs = sellerFirstSeenByPhone.get(normalized);
+  const sellerDays = sellerSinceMs ? Math.floor((Date.now()-sellerSinceMs)/86400000) : 0;
+  const sellerSinceLabel = sellerDays >= 1 ? `Vendeur depuis ${sellerDays} jour${sellerDays>1?'s':''}` : null;
+  const verified = sellerVerifiedByPhone.get(normalized);
+  const bargainMsg = `Bonjour, j'ai vu votre boutique sur LouraMakiti et je suis intéressé(e) par vos annonces.`;
+  const shareMsg = `Découvrez la boutique de ${displayName} sur LouraMakiti — ${sellerPageUrl(refPhone)}`;
+
+  const gridHtml = sellerListings.length
+    ? `<div class="grid">${sellerListings.map(l=>cardHTML(l)).join('')}</div>`
+    : `<p class="help" style="padding:0">Aucune annonce active pour le moment.</p>`;
+
+  const el = document.getElementById('sellerPageContent');
+  el.innerHTML = `
+    <div class="seller-page-hero">
+      <div class="seller-page-avatar">${escapeHtml(initial)}</div>
+      <p class="seller-page-name">${escapeHtml(displayName)}</p>
+      <p class="seller-page-sub">${latest.commune ? escapeHtml(latest.commune)+', ' : ''}${escapeHtml(latest.city||'')}</p>
+      <div class="seller-page-trust">
+        ${count > 0 ? `<span class="seller-page-chip gold">⭐ ${avg.toFixed(1)} (${count} avis)</span>` : ''}
+        ${sellerSinceLabel ? `<span class="seller-page-chip">📅 ${sellerSinceLabel}</span>` : ''}
+        <span class="seller-page-chip">🛍️ ${totalPosts} annonce${totalPosts>1?'s':''} publiée${totalPosts>1?'s':''}</span>
+        ${verified ? `<span class="seller-page-chip gold">✅ Vérifié</span>` : ''}
+      </div>
+      <div class="seller-page-acts">
+        <a style="background:var(--azure)" class="buyer-contact-link" data-method="call" href="tel:${escapeHtml(refPhone)}">${CALL_ICON} Appeler</a>
+        <a style="background:#25D366" class="buyer-contact-link" data-method="whatsapp" href="${waLink(refPhone, bargainMsg)}" target="_blank" rel="noopener">${WHATSAPP_ICON}WhatsApp</a>
+      </div>
+    </div>
+    <div class="seller-page-body">
+      <div class="seller-page-share">
+        <div><strong style="display:block;font-size:.78rem;color:var(--night)">🔗 Partager cette boutique</strong><small>${escapeHtml(sellerPageUrl(refPhone))}</small></div>
+        <a class="btn-secondary" style="text-decoration:none;white-space:nowrap" href="https://wa.me/?text=${encodeURIComponent(shareMsg)}" target="_blank" rel="noopener">↗️ Partager</a>
+      </div>
+      <h2 class="section-label" style="margin:0 0 .5rem">${sellerListings.length} annonce${sellerListings.length>1?'s':''} active${sellerListings.length>1?'s':''}</h2>
+      ${gridHtml}
+    </div>`;
+
+  const gridEl = el.querySelector('.grid');
+  if(gridEl){
+    attachCardHandlers(gridEl, { openOnClick: false });
+    // Deliberately not the default openOnClick handler — that would open
+    // openListingDetail() UNDER this modal in DOM stacking order. Closing
+    // the seller page first, then opening the listing, gives a clean
+    // "drill down" feel and a normal ✕ back out of the listing returns to
+    // the main grid rather than to an invisible stacked backdrop.
+    gridEl.querySelectorAll('.card').forEach(card=>{
+      card.addEventListener('click', (e)=>{
+        if(e.target.closest('a, button, .dot')) return;
+        const listing = allListings.find(l=>l.id===card.dataset.id);
+        if(listing){ closeModal('sellerPageModal'); openListingDetail(listing); }
+      });
+    });
+  }
+  openModal('sellerPageModal');
+}
+
+// Same "is this listing currently shown to buyers" logic as matchesFilters,
+// minus the onlyMine/search/category/city/date filtering that only makes
+// sense for the main grid — a seller's shop page always shows ALL of their
+// visible active listings, with no filters applied.
+function matchesFiltersForShop(l){
+  if(l.flagged) return false;
+  if(sellerBannedByPhone.get(normalizePhone(l.phone_number))) return false;
+  if(l.status !== 'active') return false;
+  const premium = l.payment_status === 'premium';
+  const sponsorshipActive = premium && l.premium_expires_at && new Date(l.premium_expires_at).getTime() > Date.now();
+  const isExpired = new Date(l.expires_at).getTime() < Date.now() && !sponsorshipActive;
+  return !isExpired;
+}
+
+// The seller's own entry point to their shareable shop link — a small card
+// shown only while browsing "Mes annonces" (never on the public grid), and
+// only once this device has at least one listing of its own to derive a
+// phone number/link from. No new state to manage: it just reads whatever
+// "Mes annonces" is already showing on every render.
+let myShopPhone = null;
+function updateMyShopLinkCard(){
+  const card = document.getElementById('myShopLinkCard');
+  if(!state.onlyMine){
+    card.classList.add('hidden');
+    myShopPhone = null;
+    return;
+  }
+  const mine = allListings.filter(l => l.owner_token === deviceToken || isMineByListing(l));
+  if(!mine.length){
+    card.classList.add('hidden');
+    myShopPhone = null;
+    return;
+  }
+  const latest = [...mine].sort((a,b)=> new Date(b.created_at)-new Date(a.created_at))[0];
+  myShopPhone = latest.phone_number;
+  document.getElementById('myShopLinkVal').textContent = sellerPageUrl(myShopPhone);
+  card.classList.remove('hidden');
+}
+document.getElementById('myShopShareBtn').addEventListener('click', ()=>{
+  if(!myShopPhone) return;
+  const shareMsg = `Découvrez ma boutique sur LouraMakiti — ${sellerPageUrl(myShopPhone)}`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(shareMsg)}`, '_blank');
+});
 
 // Install nudge: shown after someone's viewed a few listings in this visit
 // (real intent, not a cold landing) — never to someone already running the
@@ -5678,6 +5891,8 @@ function renderListings(){
   // listing, rather than relocating it.
   if(state.sort === 'price_asc') filtered = [...filtered].sort((a,b)=>a.price-b.price);
   else if(state.sort === 'price_desc') filtered = [...filtered].sort((a,b)=>b.price-a.price);
+
+  updateMyShopLinkCard();
 
   const grid = document.getElementById('listingsGrid');
   const empty = document.getElementById('emptyState');
@@ -9440,10 +9655,14 @@ loadAndRender().then(()=>{
   // change keeps working, not just new links going forward.
   const params = new URLSearchParams(location.search);
   const sharedCode = params.get('l') || params.get('listing');
+  const sellerParam = params.get('v');
   if(sharedCode){
     const shared = allListings.find(l => l.short_code === sharedCode || l.id === sharedCode);
     if(shared) openListingDetail(shared);
     else toast("Cette annonce n'est plus disponible (vendue, expirée, ou supprimée).");
+  } else if(sellerParam){
+    // Public seller page link (?v=<phone digits>) — see openSellerPage.
+    openSellerPage(sellerParam);
   } else if(shouldShowWelcomeIntro()){
     // Only for a genuine first-time landing — not shown at all if they
     // arrived via a specific shared listing link, since popping up a
