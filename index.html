@@ -4981,7 +4981,16 @@ document.addEventListener('click', (e)=>{
 // actual tel:/wa.me/sms: handoff, and a failed insert (offline, etc.)
 // leaves the contact button working exactly as before.
 function logContactEvent(listingId, method, viaOffer){
-  if(!configured || !listingId || !method) return;
+  // TEMPORARY DEBUG AID (remove once "contacts stuck at 0" is confirmed
+  // fixed): normally this whole function is silent on purpose (fire-and-
+  // forget, never interrupts the tel:/wa.me/sms: handoff even if logging
+  // fails) — these two toasts are added ONLY to surface, directly on
+  // screen, exactly what's failing during this investigation, since there's
+  // no way to check the browser console on a phone.
+  if(!configured || !listingId || !method){
+    toast(`(Debug) Contact non suivi — configured=${configured}, listingId=${listingId}, method=${method}`);
+    return;
+  }
   supabase.from('contact_events').upsert({
     listing_id: listingId,
     method,
@@ -4989,7 +4998,10 @@ function logContactEvent(listingId, method, viaOffer){
     visitor_token: deviceToken
   }, { onConflict: 'listing_id,method,visitor_token', ignoreDuplicates: true })
   .then(({ error })=>{
-    if(error) console.error('Contact event log failed:', error);
+    if(error){
+      console.error('Contact event log failed:', error);
+      toast(`(Debug) Échec de l'enregistrement du contact : ${error.message || error.code || 'erreur inconnue'}`);
+    }
   });
 }
 
