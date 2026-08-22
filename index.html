@@ -309,11 +309,19 @@ button:disabled{opacity:.45;cursor:not-allowed}
 
 .cahier-summary-grid{
   display:flex;gap:.5rem;text-align:center;background:var(--cotton);
-  border-radius:10px;padding:.7rem .4rem;margin-bottom:.7rem;
+  border-radius:10px;padding:.45rem .4rem;margin-bottom:.5rem;
 }
 .cahier-summary-grid>div{flex:1}
-.cahier-summary-grid small{font-size:.68rem;color:var(--stone)}
-.cahier-summary-grid strong{font-size:1rem}
+.cahier-summary-grid small{font-size:.64rem;color:var(--stone)}
+.cahier-summary-grid strong{font-size:.88rem}
+/* Ma Boutique's own buttons (Rapport du jour / Ajouter une Vente-Dépense-
+   etc / Exporter / the single-vs-multi-article choice) render at the
+   shared .btn-block size, which is noticeably large in this tighter
+   panel. Scoped down here instead of touching .btn-block globally, since
+   that class is reused everywhere else in the app. */
+#cahierMainModal .btn-block, #cahierVenteChoiceModal .btn-block{
+  padding:.55rem .75rem;font-size:.85rem;
+}
 /* Reusable tiny bar chart — used for Ma Boutique's own sales trend and the
    admin signup-growth chart. Pure HTML/CSS (bar heights via inline style),
    no canvas/library needed since this only ever renders inline, never
@@ -1289,7 +1297,7 @@ input,select,textarea{font-size:16px !important}
     </div>
     <div id="cahierSummary" class="cahier-summary-grid"></div>
     <button type="button" class="btn-secondary btn-block" id="cahierReportBtn" style="margin-top:.6rem">📊 Rapport du jour</button>
-    <input type="text" id="cahierSearchPhone" placeholder="🔎 Rechercher par téléphone (client)..." style="width:100%;padding:.6rem .7rem;border:1px solid var(--line);border-radius:8px;font-size:.85rem;margin-top:.6rem">
+    <input type="text" id="cahierSearchPhone" placeholder="🔎 Rechercher par téléphone (client)..." style="width:100%;padding:.5rem .6rem;border:1px solid var(--line);border-radius:8px;font-size:.82rem;margin-top:.5rem">
     <div class="scroll-fade-wrap">
     <div class="chips" id="cahierFilterTabs" style="margin:.8rem 0 0">
       <button class="chip cahier-filter-tab active" data-filter="all">Tout</button>
@@ -4105,6 +4113,7 @@ if('serviceWorker' in navigator){
   // escape into their real browser first, via that webview's OWN menu, not
   // this page's.
   const isInAppBrowser = /FBAN|FBAV|FB_IAB|Instagram/i.test(navigator.userAgent);
+  const isAndroid = /android/.test(navigator.userAgent.toLowerCase());
 
   let deferredPrompt = null;
   window.addEventListener('beforeinstallprompt', (e)=>{
@@ -4146,6 +4155,24 @@ if('serviceWorker' in navigator){
     textEl.textContent = "📲 Appuyez sur l'icône Partager en bas de Safari, puis \"Sur l'écran d'accueil\".";
     btn.classList.add('hidden');
     banner.classList.remove('hidden');
+  } else if(isAndroid){
+    // Chromium-based Android browsers (Chrome, Samsung Internet, Edge,
+    // regular Opera) fire beforeinstallprompt above and get the real
+    // "Installer" button. Anything else on Android — Firefox, Opera Mini,
+    // WhatsApp's own in-app browser, less common browsers — never fires
+    // that event, so without this the banner would just silently never
+    // appear for them. Wait a few seconds (long enough for a Chromium
+    // browser to have already fired the event and claimed the banner
+    // above), then fall back to one generic, brand-agnostic instruction
+    // instead of showing nothing at all.
+    setTimeout(()=>{
+      if(deferredPrompt) return; // a Chromium browser already claimed this
+      if(!banner.classList.contains('hidden')) return; // already shown some other way
+      if(localStorage.getItem('lmk_install_dismissed') === '1') return; // dismissed in the meantime
+      textEl.textContent = "📲 Pour installer LouraMakiti, cherchez « Ajouter à l'écran d'accueil » dans le menu ⋮ ou ☰ de votre navigateur.";
+      btn.classList.add('hidden');
+      banner.classList.remove('hidden');
+    }, 2500);
   }
 })();
 
