@@ -6946,12 +6946,13 @@ listingForm.addEventListener('submit', async (e)=>{
         // gallery). The full-size photos above are untouched and still
         // power the full gallery once someone actually opens the listing.
         if(i === 0){
-          // Bumped from 200px/0.5 quality — this is the single highest-
-          // traffic image on the whole site (downloaded on every homepage
-          // grid load), so it was deliberately squeezed hardest to control
-          // Supabase egress. 240px/0.62 is a moderate, not maximal, step
-          // up in sharpness for a moderate (not doubled) egress increase.
-          const { blob: thumbBlob, ext: thumbExt } = await compressImage(file, 240, 0.62);
+          // This is the single highest-traffic image on the whole site
+          // (downloaded on every homepage grid load), so it's deliberately
+          // squeezed hardest to control Supabase egress. 220px/0.55 is a
+          // small step up from the original 200px/0.5 — a first attempt at
+          // 240px/0.62 (~roughly double the bytes) looked "too clean" for
+          // this app, so this settled on just a bit above the original.
+          const { blob: thumbBlob, ext: thumbExt } = await compressImage(file, 220, 0.55);
           const thumbPath = `${deviceToken}/${Date.now()}-thumb.${thumbExt}`;
           try{
             await uploadPhotoWithRetry(thumbPath, thumbBlob, { contentType: thumbBlob.type, upsert: true, cacheControl: '31536000' });
@@ -7410,7 +7411,7 @@ async function runThumbCleanupFix(){
       const res = await fetch(item.firstPhotoUrl);
       if(!res.ok) throw new Error('téléchargement échoué');
       const originalBlob = await res.blob();
-      const { blob: thumbBlob, ext } = await compressImage(originalBlob, 240, 0.62); // kept in sync with the main publish flow above
+      const { blob: thumbBlob, ext } = await compressImage(originalBlob, 220, 0.55); // kept in sync with the main publish flow above
       const path = `${item.listingId}/thumb-${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, thumbBlob, { contentType: thumbBlob.type, cacheControl: '31536000' });
       if(upErr) throw upErr;
@@ -7484,7 +7485,7 @@ async function runThumbUpgradeFix(){
       const res = await fetch(item.firstPhotoUrl);
       if(!res.ok) throw new Error('téléchargement échoué');
       const originalBlob = await res.blob();
-      const { blob: thumbBlob, ext } = await compressImage(originalBlob, 240, 0.62);
+      const { blob: thumbBlob, ext } = await compressImage(originalBlob, 220, 0.55);
       const path = `${item.listingId}/thumb-${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, thumbBlob, { contentType: thumbBlob.type, cacheControl: '31536000' });
       if(upErr) throw upErr;
