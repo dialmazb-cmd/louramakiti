@@ -8737,6 +8737,7 @@ function renderAdminAllListings(){
       <div class="actions">
         ${l.status!=='sold' && l.payment_status!=='premium' ? '<button class="btn-primary" data-admin-promo-boost>🎁 Booster gratuitement</button>' : ''}
         ${l.payment_status==='premium' ? '<button class="btn-secondary" data-admin-remove-boost>🚫 Retirer le boost</button>' : ''}
+        ${l.status!=='sold' ? '<button class="btn-secondary" data-admin-bump>🔝 Pousser en haut</button>' : ''}
         ${isBumped(l) ? '<button class="btn-secondary" data-admin-remove-bump>🔽 Retirer le remontage</button>' : ''}
         ${l.status!=='sold' ? '<button class="btn-danger" data-admin-sold>Marquer vendu</button>' : ''}
         <button class="btn-danger" data-admin-delete>Supprimer</button>
@@ -8824,6 +8825,21 @@ function renderAdminAllListings(){
       }).eq('id', id);
       if(error){ toast(`Erreur : ${error.message}`); return; }
       toast('Boost retiré.');
+      await loadAdminAllListings();
+      loadAndRender();
+    });
+    row.querySelector('[data-admin-bump]')?.addEventListener('click', async ()=>{
+      // Same effect as the seller's own free "🔝 Remonter en tête" button
+      // (push created_at to now, leaving the permanent first_posted_at
+      // column untouched) — just triggered by admin, on any listing, with
+      // no cooldown/ownership check. Already fully reversible via the
+      // existing "🔽 Retirer le remontage" button below, since that one
+      // just restores created_at from first_posted_at.
+      const { error } = await supabase.from('listings').update({
+        created_at: new Date().toISOString()
+      }).eq('id', id);
+      if(error){ toast(`Erreur : ${error.message}`); return; }
+      toast('Annonce poussée en tête de liste ✅');
       await loadAdminAllListings();
       loadAndRender();
     });
