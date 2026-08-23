@@ -1921,7 +1921,17 @@ input,select,textarea{font-size:16px !important}
 
     <div class="admin-tab-panel hidden" data-panel="analyse">
       <h4 style="margin:.2rem 0 .4rem">Analyse</h4>
-      <p class="help" style="margin-top:0">Indicateurs de santé de la plateforme — rétention, activation, croissance des inscriptions et répartition géographique. Ces chiffres portent toujours sur l'ensemble des données, pas sur un filtre en cours ailleurs.</p>
+      <p class="help" style="margin-top:0">Rétention, activation, croissance des inscriptions et répartition géographique portent toujours sur l'ensemble des données. Contacts vendeurs et Installations, eux, suivent la période choisie ci-dessous.</p>
+      <div class="scroll-fade-wrap">
+      <div class="chips analyse-period-tab" style="margin-bottom:.5rem">
+        <button class="chip analyse-period-tab-btn active" data-period="all">Tout</button>
+        <button class="chip analyse-period-tab-btn" data-period="day">Jour</button>
+        <button class="chip analyse-period-tab-btn" data-period="week">Semaine</button>
+        <button class="chip analyse-period-tab-btn" data-period="month">Mois</button>
+        <button class="chip analyse-period-tab-btn" data-period="year">Année</button>
+      </div>
+      </div>
+      <input type="date" id="analysePeriodDate" class="hidden" style="width:100%;padding:.5rem .6rem;border:1px solid var(--line);border-radius:8px;font-size:.82rem;margin-bottom:.5rem">
       <div id="adminAnalyse"></div>
     </div>
 
@@ -7768,7 +7778,7 @@ async function openAdminPanel(){
   // they're action queues, not historical logs, and defaulting those to
   // today risks silently hiding an unresolved item from a few days ago.
   const today = todayKey();
-  ['statsPeriodDate','adminListingsDate','sellersPeriodDate','cahierAccountsPeriodDate','cahierActivityPeriodDate'].forEach(id=>{
+  ['statsPeriodDate','adminListingsDate','sellersPeriodDate','cahierAccountsPeriodDate','cahierActivityPeriodDate','analysePeriodDate'].forEach(id=>{
     const el = document.getElementById(id);
     if(el && !el.value) el.value = today;
   });
@@ -7826,7 +7836,10 @@ async function openAdminPanel(){
 // breaking the rest of the admin panel.
 let adminContactEventsCache = [];
 async function loadAdminContactStats(){
-  const { data, error } = await supabase.from('contact_events').select('listing_id, method, via_offer');
+  // created_at added so the Analyse tab's period selector (Tout/Jour/
+  // Semaine/Mois/Année) can filter these — the per-row counts on Annonces
+  // and Vendeurs stay all-time regardless, see contactCountsByListingAndPhone.
+  const { data, error } = await supabase.from('contact_events').select('listing_id, method, via_offer, created_at');
   if(error){ console.error('Contact stats load failed:', error); adminContactEventsCache = []; return; }
   adminContactEventsCache = data || [];
 }
@@ -7838,11 +7851,14 @@ async function loadAdminContactStats(){
 // that could quietly drift apart. Needs loadAdminContactStats() AND
 // loadAdminAllListings() to have already run (contact_events only stores
 // listing_id — resolving that to a seller phone requires the listing).
-function contactCountsByListingAndPhone(){
+// Optional `events` lets the Analyse tab pass in a period-filtered subset
+// (Tout/Jour/Semaine/Mois/Année) without changing what Annonces/Vendeurs
+// show, which stay all-time on purpose — defaults to the full cache.
+function contactCountsByListingAndPhone(events = adminContactEventsCache){
   const listingsById = new Map(adminAllListingsCache.map(l=>[l.id, l]));
   const byListing = new Map();
   const byPhone = new Map();
-  adminContactEventsCache.forEach(ev=>{
+  events.forEach(ev=>{
     byListing.set(ev.listing_id, (byListing.get(ev.listing_id) || 0) + 1);
     const listing = listingsById.get(ev.listing_id);
     if(listing){
@@ -7855,13 +7871,16 @@ function contactCountsByListingAndPhone(){
 
 // Android install count for the Analyse tab — see the 'appinstalled'
 // listener earlier in this file and install_events (05_install_tracking.sql).
-// Just a row count (head:true skips fetching the rows themselves) — nothing
-// in admin needs more than the total right now.
+// Fetches each row's created_at (not just a head:true count) so the
+// Analyse tab's period selector can filter these the same way as Contacts
+// vendeurs above.
+let adminInstallEventsCache = [];
 let adminInstallCount = 0;
 async function loadAdminInstallCount(){
-  const { count, error } = await supabase.from('install_events').select('*', { count: 'exact', head: true });
-  if(error){ console.error('Install count load failed:', error); adminInstallCount = 0; return; }
-  adminInstallCount = count || 0;
+  const { data, error } = await supabase.from('install_events').select('created_at');
+  if(error){ console.error('Install count load failed:', error); adminInstallEventsCache = []; adminInstallCount = 0; return; }
+  adminInstallEventsCache = data || [];
+  adminInstallCount = adminInstallEventsCache.length;
 }
 
 // Admin override list: shows every listing regardless of which device
@@ -7943,6 +7962,25 @@ document.querySelectorAll('.stats-period-tab-btn').forEach(btn=>{
   });
 });
 document.getElementById('statsPeriodDate').addEventListener('change', renderAdminStats);
+
+// Shared period selector for the Analyse tab's Contacts vendeurs and
+// Installations sections (Tout/Jour/Semaine/Mois/Année) — defaults to
+// "Tout" rather than "Jour" like Statistiques above, since these two
+// sections showed all-time totals before this existed and switching the
+// default to "today only" would make them look empty by comparison.
+let analysePeriod = 'all';
+document.querySelectorAll('.analyse-period-tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.analyse-period-tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    analysePeriod = btn.dataset.period;
+    const dateInput = document.getElementById('analysePeriodDate');
+    dateInput.classList.toggle('hidden', analysePeriod === 'all');
+    if(analysePeriod !== 'all' && !dateInput.value) dateInput.value = todayKey();
+    renderAdminAnalyse();
+  });
+});
+document.getElementById('analysePeriodDate').addEventListener('change', renderAdminAnalyse);
 
 async function loadAdminRatingsStats(){
   const el = document.getElementById('adminRatingsStat');
@@ -8347,6 +8385,19 @@ function renderAdminAnalyse(){
   const el = document.getElementById('adminAnalyse');
   if(!el) return;
 
+  // Shared Tout/Jour/Semaine/Mois/Année period, scoped to Contacts
+  // vendeurs and Installations below — everything else on this tab
+  // (rétention, activation, croissance, répartition géographique) stays
+  // all-time regardless, per the note at the top of this tab.
+  const analyseRange = analysePeriod !== 'all'
+    ? getCahierPeriodRange(analysePeriod, document.getElementById('analysePeriodDate').value || todayKey())
+    : null;
+  const inAnalyseRange = (dateStr) => {
+    if(!analyseRange) return true;
+    const t = new Date(dateStr).getTime();
+    return t >= analyseRange.start.getTime() && t < analyseRange.end.getTime();
+  };
+
   let cahierSectionHtml = '<p class="help">Aucune donnée Ma Boutique pour le moment.</p>';
   if(adminCahierAccountsCache.length){
     // Activation: of everyone who ever signed up, what fraction logged at
@@ -8407,9 +8458,10 @@ function renderAdminAnalyse(){
   // (e.g. right after deploying, before the first real click), which looks
   // identical to the feature not being deployed at all. Showing "0" here
   // is the only way to confirm from the admin panel that it's actually live.
+  const contactEventsInPeriod = adminContactEventsCache.filter(ev => inAnalyseRange(ev.created_at));
   const totalsByMethod = { call: 0, whatsapp: 0, sms: 0 };
   const viaOfferByMethod = { whatsapp: 0, sms: 0 };
-  adminContactEventsCache.forEach(ev=>{
+  contactEventsInPeriod.forEach(ev=>{
     if(totalsByMethod[ev.method] !== undefined) totalsByMethod[ev.method]++;
     if(ev.via_offer && viaOfferByMethod[ev.method] !== undefined) viaOfferByMethod[ev.method]++;
   });
@@ -8422,7 +8474,7 @@ function renderAdminAnalyse(){
     const key = normalizePhone(l.phone_number);
     if(!latestListingByPhone.has(key)) latestListingByPhone.set(key, l);
   });
-  const { byListing: contactsByListing, byPhone: contactsByPhone } = contactCountsByListingAndPhone();
+  const { byListing: contactsByListing, byPhone: contactsByPhone } = contactCountsByListingAndPhone(contactEventsInPeriod);
   const topContactedHtml = [...contactsByListing.entries()]
     .sort((a,b) => b[1]-a[1])
     .slice(0, 10)
@@ -8443,7 +8495,7 @@ function renderAdminAnalyse(){
   const contactsSectionHtml = `
     <p style="font-weight:700;margin:.6rem 0 .3rem">📞 Contacts vendeurs</p>
     <div class="cahier-summary-grid">
-      <div><small>Total des contacts</small><br><strong style="color:var(--azure)">${adminContactEventsCache.length}</strong></div>
+      <div><small>Total des contacts</small><br><strong style="color:var(--azure)">${contactEventsInPeriod.length}</strong></div>
       <div><small>Répartition par méthode</small><br><span class="help" style="margin:0">📞 Appels ${totalsByMethod.call} · 💬 WhatsApp ${totalsByMethod.whatsapp} (dont ${viaOfferByMethod.whatsapp} via Négocier) · ✉️ SMS ${totalsByMethod.sms} (dont ${viaOfferByMethod.sms} via Négocier)</span></div>
     </div>
     <p class="help" style="margin:.5rem 0 .2rem;font-weight:700">Par annonce (top 10)</p>
@@ -8456,9 +8508,10 @@ function renderAdminAnalyse(){
   // (05_install_tracking.sql). Android/Chrome-only by construction (iOS
   // Safari never fires this event for "Add to Home Screen"), so the label
   // says so rather than implying this is a full cross-platform total.
+  const installCountInPeriod = adminInstallEventsCache.filter(ev => inAnalyseRange(ev.created_at)).length;
   const installsSectionHtml = `
     <p style="font-weight:700;margin:.6rem 0 .3rem">📲 Installations (Android)</p>
-    <p class="help" style="margin:0 0 .3rem">${adminInstallCount} installation${adminInstallCount === 1 ? '' : 's'} confirmée${adminInstallCount === 1 ? '' : 's'} — Android/Chrome uniquement, iOS ne peut pas être mesuré ainsi (limite d'Apple, pas de l'app).</p>
+    <p class="help" style="margin:0 0 .3rem">${installCountInPeriod} installation${installCountInPeriod === 1 ? '' : 's'} confirmée${installCountInPeriod === 1 ? '' : 's'} — Android/Chrome uniquement, iOS ne peut pas être mesuré ainsi (limite d'Apple, pas de l'app).</p>
   `;
 
   el.innerHTML = `
