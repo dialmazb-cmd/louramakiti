@@ -701,8 +701,7 @@ input,select,textarea{font-size:16px !important}
   <div class="scroll-fade-wrap">
   <div class="topbar-row2">
     <button id="topbarMaBoutique" class="topbar-pill topbar-pill-boutique" style="position:relative">📒 Ma Boutique<span id="cahierCreditBadge" class="cahier-credit-badge hidden">0</span></button>
-    <button id="topbarMesAnnonces" class="topbar-pill">📋 Mes Annonces</button>
-    <button id="topbarPublier" class="topbar-pill" style="background:var(--mango)">➕ Publier</button>
+    <button id="topbarPublier" class="topbar-pill" style="background:var(--mango)">➕ Publier une annonce</button>
     <button id="categoryBtn" class="topbar-pill">🏷️ Catégories</button>
   </div>
   </div>
@@ -869,6 +868,15 @@ input,select,textarea{font-size:16px !important}
   </div>
   <p class="footer-copy">© <span id="footerYear"></span> LouraMakiti — Le marché qui bouge avec vous.</p>
 </footer>
+
+<!-- PUBLIER (choice: new listing vs. manage my listings) -->
+<div id="publierChoiceModal" class="modal-backdrop hidden">
+  <div class="modal-sheet">
+    <div class="modal-head"><h3>➕ Publier une annonce</h3><button class="modal-close" data-close="publierChoiceModal">✕</button></div>
+    <button type="button" class="btn-primary btn-block" id="publierChoiceNewBtn">➕ Publier une nouvelle annonce</button>
+    <button type="button" class="btn-secondary btn-block" id="publierChoiceMesAnnoncesBtn" style="margin-top:.5rem">📋 Gérer mes annonces</button>
+  </div>
+</div>
 
 <!-- CREATE / EDIT LISTING -->
 <div id="formModal" class="modal-backdrop hidden">
@@ -1633,11 +1641,11 @@ input,select,textarea{font-size:16px !important}
     </details>
     <details class="help-accordion-item">
       <summary>Comment publier une annonce ?</summary>
-      <p>Appuyez sur "➕ Publier", remplissez le formulaire (photo obligatoire), notez votre code secret à 4 chiffres, puis publiez.</p>
+      <p>Appuyez sur "➕ Publier une annonce", puis "➕ Publier une nouvelle annonce", remplissez le formulaire (photo obligatoire), notez votre code secret à 4 chiffres, puis publiez.</p>
     </details>
     <details class="help-accordion-item">
       <summary>J'ai perdu l'accès à mon annonce, que faire ?</summary>
-      <p>Appuyez sur "Mes Annonces" — si rien ne s'affiche sur cet appareil, utilisez "🔑 Retrouver via téléphone" avec votre numéro et votre code secret à 4 chiffres.</p>
+      <p>Appuyez sur "➕ Publier une annonce" puis "📋 Gérer mes annonces" — si rien ne s'affiche sur cet appareil, utilisez "🔑 Retrouver via téléphone" avec votre numéro et votre code secret à 4 chiffres.</p>
     </details>
     <details class="help-accordion-item">
       <summary>Comment fonctionne le mode Sponsorisé ?</summary>
@@ -5345,7 +5353,6 @@ document.getElementById('sortFilter').addEventListener('change', (e)=>{ state.so
 document.getElementById('filtersBtn').addEventListener('click', ()=>openModal('filtersModal'));
 function updateOnlyMineBanner(){
   document.getElementById('onlyMineBanner').classList.toggle('hidden', !state.onlyMine);
-  topbarMesAnnonces.classList.toggle('active', state.onlyMine);
 }
 function updateFavoritesBanner(){
   document.getElementById('favoritesBanner').classList.toggle('hidden', !state.onlyFavorites);
@@ -5354,36 +5361,46 @@ function updateFavoritesBanner(){
   quickBtn.classList.toggle('favorited', state.onlyFavorites);
 }
 
-const topbarMesAnnonces = document.getElementById('topbarMesAnnonces');
-topbarMesAnnonces.addEventListener('click', async ()=>{
-  state.onlyMine = !state.onlyMine;
-  if(state.onlyMine){
-    state.onlyFavorites = false;
-    updateFavoritesBanner();
-    // If this device already has consented PIN-remembering (see the
-    // one-time consent prompt), use it to automatically surface every
-    // listing for that phone number — no extra tap needed, since
-    // everything required is already sitting right here. Only kicks in
-    // if nothing's already verified, so it never overrides someone who
-    // explicitly recovered a different phone number via the manual link.
-    if(!getVerifiedPhone() && pinRememberConsent()){
-      const lastPhone = localStorage.getItem('lmk_last_phone');
-      if(lastPhone){
-        const profile = getSellerProfile(lastPhone);
-        if(profile && profile.pin){
-          setVerifiedPhone(lastPhone);
-          setVerifiedPin(profile.pin);
-        }
+// Shows the caller's own listings on the homepage grid (used to be its own
+// "📋 Mes Annonces" top-bar button; now reached via the "Publier une
+// annonce" choice popup's "Gérer mes annonces" option). Always turns the
+// filter ON rather than toggling — turning it back off is handled by the
+// existing "✕ Voir toutes les annonces" exit button on #onlyMineBanner.
+async function activateOnlyMine(){
+  state.onlyMine = true;
+  state.onlyFavorites = false;
+  updateFavoritesBanner();
+  // If this device already has consented PIN-remembering (see the
+  // one-time consent prompt), use it to automatically surface every
+  // listing for that phone number — no extra tap needed, since
+  // everything required is already sitting right here. Only kicks in
+  // if nothing's already verified, so it never overrides someone who
+  // explicitly recovered a different phone number via the manual link.
+  if(!getVerifiedPhone() && pinRememberConsent()){
+    const lastPhone = localStorage.getItem('lmk_last_phone');
+    if(lastPhone){
+      const profile = getSellerProfile(lastPhone);
+      if(profile && profile.pin){
+        setVerifiedPhone(lastPhone);
+        setVerifiedPin(profile.pin);
       }
     }
-    await refreshOwnedListingIds();
   }
+  await refreshOwnedListingIds();
   updateOnlyMineBanner();
   renderListings();
-});
+}
 
 document.getElementById('topbarPublier').addEventListener('click', ()=>{
+  openModal('publierChoiceModal');
+});
+document.getElementById('publierChoiceNewBtn').addEventListener('click', ()=>{
+  closeModal('publierChoiceModal');
   openCreateForm();
+});
+document.getElementById('publierChoiceMesAnnoncesBtn').addEventListener('click', ()=>{
+  closeModal('publierChoiceModal');
+  activateOnlyMine();
 });
 
 document.getElementById('exitOnlyMineBtn').addEventListener('click', ()=>{
