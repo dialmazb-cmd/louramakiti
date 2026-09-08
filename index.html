@@ -5649,7 +5649,11 @@ async function loadAndRender(){
   if(!configured) return;
   document.getElementById('loadingState').classList.remove('hidden');
   try{
-    const twentyFourHoursAgoIso = new Date(Date.now() - 24*3600*1000).toISOString();
+    // A "vendu" listing stays visible in the feed for 5 days after being
+    // marked sold (then quietly drops out of this query) — unless the
+    // seller or an admin deletes it outright before then, via their
+    // existing "Supprimer" buttons, which work regardless of this window.
+    const fiveDaysAgoIso = new Date(Date.now() - 5*24*3600*1000).toISOString();
     const sixtyDaysAgoIso = new Date(Date.now() - 60*24*3600*1000).toISOString(); // generous safety net only
     // Explicit column list — deliberately excludes management_pin, which
     // used to be sent to every visitor's browser via select('*'). Anon no
@@ -5658,7 +5662,7 @@ async function loadAndRender(){
     const { data, error } = await supabase
       .from('listings')
       .select('id,short_code,title,price,description,phone_number,category,city,commune,delivery_available,condition,image_url,image_urls,thumbnail_url,owner_name,owner_token,status,payment_status,transaction_reference,calculated_boost_fee,boost_duration_days,created_at,expires_at,sold_at,premium_expires_at,flagged')
-      .or(`status.eq.active,and(status.eq.sold,sold_at.gt.${twentyFourHoursAgoIso})`)
+      .or(`status.eq.active,and(status.eq.sold,sold_at.gt.${fiveDaysAgoIso})`)
       .gt('created_at', sixtyDaysAgoIso)
       .order('created_at', { ascending: false });
     if(error) throw error;
@@ -5866,7 +5870,7 @@ function cardHTML(l, opts){
         ${!sold ? `<button class="btn-secondary" data-action="duplicate">Dupliquer</button>` : ''}
         ${!sold ? `<button class="btn-danger" data-action="sold">Marquer comme Vendu</button>` : ''}
         <button class="btn-danger" data-action="delete">Supprimer</button>
-        ${!sold ? `<button class="btn-palm" data-action="extend">Prolonger (30 jours)</button>` : ''}
+        ${!sold ? `<button class="btn-palm" data-action="extend">Prolonger (90 jours)</button>` : ''}
         ${bumpState && bumpState.eligible ? `<button class="btn-bump" data-action="bump">🔝 Remonter en tête</button>` : ''}
         ${bumpState && !bumpState.eligible ? `<button class="btn-bump-cooldown" disabled>🔝 Disponible dans ${bumpDaysLeft} j</button>` : ''}
         ${!sold ? `<a class="btn-secondary" style="background:#1877F2;color:#fff" href="https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(location.origin+'/?l='+(l.short_code||l.id))}" target="_blank" rel="noopener">📘 Facebook</a>` : ''}
@@ -7168,13 +7172,13 @@ async function deleteListing(listing){
   loadAndRender();
 }
 async function extendListing(listing){
-  const newExpiry = new Date(Date.now() + 30*24*3600*1000).toISOString();
+  const newExpiry = new Date(Date.now() + 90*24*3600*1000).toISOString();
   const { data: ok, error } = await supabase.rpc('update_own_listing', {
     p_id: listing.id, p_owner_token: deviceToken, p_pin: getVerifiedPin(),
     p_updates: { expires_at: newExpiry }
   });
   if(error || !ok) return toast('Erreur (hors-ligne, ou cette annonce ne vous appartient pas).');
-  toast('Annonce prolongée de 30 jours et de nouveau visible.');
+  toast('Annonce prolongée de 90 jours et de nouveau visible.');
   loadAndRender();
 }
 async function bumpListing(listing){
