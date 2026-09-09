@@ -2072,7 +2072,7 @@ input,select,textarea{font-size:16px !important}
           <input type="checkbox" id="adminSoldPinningEnabledCheckbox" style="width:auto">
           Mettre en avant les ventes récentes (encourager les visites)
         </label>
-        <p class="help">Décochée (par défaut) : une annonce marquée "Vendu" garde sa place normale dans la liste. Cochée : jusqu'à 3 des ventes les plus récentes sont épinglées parmi les 8 premières annonces de la page d'accueil (jamais en position n°1, pour ne jamais passer devant le Sponsorisé) — pour montrer que des ventes ont vraiment lieu. Uniquement sur la vue par défaut (Tout, sans recherche/filtre). Désactivez une fois que l'activité du site parle d'elle-même.</p>
+        <p class="help">Décochée (par défaut) : une annonce marquée "Vendu" garde sa place normale dans la liste. Cochée : dès qu'une annonce est marquée "Vendu", elle remonte une seule fois en tête de liste — comme un remontage gratuit — pour montrer que des ventes ont vraiment lieu. Seulement les 3 ventes les plus récentes en profitent. Ce n'est jamais figé : toute nouvelle annonce publiée après cette vente repasse naturellement devant elle, comme n'importe quel remontage. Uniquement sur la vue par défaut (Tout, sans recherche/filtre). Désactivez une fois que l'activité du site parle d'elle-même.</p>
       </div>
       <button type="button" class="btn-primary btn-block" id="saveSiteSettingsBtn" style="margin-bottom:1rem">Enregistrer les réglages</button>
 
@@ -5728,28 +5728,29 @@ function sellerActivityBadge(phone, explicitCount){
   return { text: 'Nouveau vendeur', cls: 'seller-badge-new' };
 }
 
-// "Encourage visits" experiment: pins the most recently sold listings near
-// the top of the default homepage grid instead of leaving them in their
-// normal chronological spot — sold items are otherwise easy to miss, and
-// seeing real sales happen is meant to build confidence the site is active.
+// "Encourage visits" experiment: the most recently sold listings act as if
+// they got a free "bump" at the exact moment they were marked sold, instead
+// of staying frozen at whatever spot they'd normally occupy — sold items are
+// otherwise easy to miss, and seeing real sales happen is meant to build
+// confidence the site is active. Crucially, this is a ONE-TIME position,
+// same as the seller's own "🔝 Remonter en tête" bump: a listing posted
+// (or itself bumped) after the sale still naturally outranks it, so a sold
+// item can never permanently block newer content from showing above it.
 // Admin-toggleable in Réglages (soldPinningEnabled); OFF has zero effect.
-const SOLD_PIN_COUNT = 3;     // at most this many — fewer if fewer exist
-const SOLD_PIN_WITHIN = 8;    // pinned items land within the first N cards
+const SOLD_PIN_COUNT = 3; // only the most-recently-sold get this treatment
 function pinRecentSoldIntoTop(list){
   if(list.length < 2) return list; // nothing meaningful to rearrange
-  const pinned = list
+  const boosted = list
     .filter(l => l.status === 'sold' && l.sold_at)
     .sort((a,b) => new Date(b.sold_at) - new Date(a.sold_at))
     .slice(0, SOLD_PIN_COUNT);
-  if(pinned.length === 0) return list; // nothing sold recently — leave order untouched
-  const pinnedIds = new Set(pinned.map(l => l.id));
-  const rest = list.filter(l => !pinnedIds.has(l.id));
-  // Position #1 is left exactly as-is (often Sponsorisé) — pinned sold
-  // items start right after it, so together they still land well inside
-  // the first SOLD_PIN_WITHIN cards.
-  const first = rest.slice(0, 1);
-  const after = rest.slice(1);
-  return [...first, ...pinned, ...after];
+  if(boosted.length === 0) return list; // nothing sold recently — leave order untouched
+  const boostedIds = new Set(boosted.map(l => l.id));
+  return [...list].sort((a,b) => {
+    const aTime = new Date(boostedIds.has(a.id) ? a.sold_at : a.created_at).getTime();
+    const bTime = new Date(boostedIds.has(b.id) ? b.sold_at : b.created_at).getTime();
+    return bTime - aTime;
+  });
 }
 
 /* ---------------- rendering ---------------- */
@@ -8335,17 +8336,26 @@ function renderAdminReports(){
         🚩 ${reports.length} signalement${reports.length>1?'s':''}${!listing.flagged ? ' (masquée automatiquement à partir de 3)' : ''}
       </div>
       <div class="actions">
-        ${listing.flagged ? `<button class="btn-palm" data-restore>Restaurer</button>` : ''}
+        <button class="btn-palm" data-dismiss-report>🚫 Ignorer (signalement accidentel)</button>
         <button class="btn-danger" data-delete-flagged>Supprimer</button>
       </div>
     </div>`).join('');
   el.querySelectorAll('.admin-row').forEach(row=>{
     const id = row.dataset.id;
-    row.querySelector('[data-restore]')?.addEventListener('click', async ()=>{
+    // Clears every report against this listing (not just the auto-hide flag)
+    // — for reports you've reviewed and believe were accidental taps, not
+    // real issues. Unlike the old "Restaurer" button this replaces, the
+    // report(s) are actually gone, so this same listing won't keep
+    // resurfacing here on every future visit to this tab. The listing
+    // itself is left completely untouched, just no longer flagged/hidden.
+    row.querySelector('[data-dismiss-report]')?.addEventListener('click', async ()=>{
+      const { error: repDelError } = await supabase.from('reports').delete().eq('listing_id', id);
+      if(repDelError){ toast(`Erreur : ${repDelError.message}`); return; }
       await supabase.from('listings').update({ flagged: false }).eq('id', id);
       adminReportsCache = adminReportsCache.filter(r => r.listing.id !== id);
       renderAdminReports();
       loadAndRender();
+      toast("Signalement ignoré — l'annonce reste en ligne normalement.");
     });
     row.querySelector('[data-delete-flagged]').addEventListener('click', async ()=>{
       if(!confirm('Supprimer définitivement cette annonce signalée ?')) return;
