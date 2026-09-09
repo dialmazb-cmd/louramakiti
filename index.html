@@ -2067,6 +2067,13 @@ input,select,textarea{font-size:16px !important}
         </label>
         <p class="help">Décochée (par défaut) : tous les vendeurs concernés sont alertés, demande boostée ou non — utile pour lancer la fonctionnalité. Cochée : seules les demandes boostées déclenchent une alerte active auprès des vendeurs, ce qui devient un avantage réel du boost. Le badge côté acheteur ("un vendeur a peut-être ce que vous cherchez") reste affiché dans les deux cas — seule l'alerte poussée vers les vendeurs change.</p>
       </div>
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:.5rem;font-weight:600">
+          <input type="checkbox" id="adminSoldPinningEnabledCheckbox" style="width:auto">
+          Mettre en avant les ventes récentes (encourager les visites)
+        </label>
+        <p class="help">Décochée (par défaut) : une annonce marquée "Vendu" garde sa place normale dans la liste. Cochée : jusqu'à 3 des ventes les plus récentes sont épinglées parmi les 8 premières annonces de la page d'accueil (jamais en position n°1, pour ne jamais passer devant le Sponsorisé) — pour montrer que des ventes ont vraiment lieu. Uniquement sur la vue par défaut (Tout, sans recherche/filtre). Désactivez une fois que l'activité du site parle d'elle-même.</p>
+      </div>
       <button type="button" class="btn-primary btn-block" id="saveSiteSettingsBtn" style="margin-bottom:1rem">Enregistrer les réglages</button>
 
       <hr style="border:none;border-top:1px solid var(--line);margin:1rem 0">
@@ -2272,6 +2279,12 @@ const WANTED_DAILY_POST_LIMIT_PER_PHONE = 3;
 // wanted_match_alerts_boosted_only, admin-editable in Réglages.
 let wantedMatchAlertsEnabled = true;
 let wantedMatchAlertsBoostedOnly = false;
+
+// "Encourage visits" experiment (admin-toggleable, Réglages tab) — defaults
+// OFF (opt-in), unlike most flags above which default ON, since this is a
+// temporary nudge meant to be switched on deliberately and turned back off
+// once organic usage is established. See site_settings.sold_pinning_enabled.
+let soldPinningEnabled = false;
 
 const CATEGORIES = ["Électroniques","Ménage","Mode","Beauté & Cosmétique","Immobilier","Services","Auto & Moto","Alimentation","Enfants","Agricole","Sport/Loisirs","Autre"];
 const CATEGORY_ICONS = {
@@ -5715,6 +5728,30 @@ function sellerActivityBadge(phone, explicitCount){
   return { text: 'Nouveau vendeur', cls: 'seller-badge-new' };
 }
 
+// "Encourage visits" experiment: pins the most recently sold listings near
+// the top of the default homepage grid instead of leaving them in their
+// normal chronological spot — sold items are otherwise easy to miss, and
+// seeing real sales happen is meant to build confidence the site is active.
+// Admin-toggleable in Réglages (soldPinningEnabled); OFF has zero effect.
+const SOLD_PIN_COUNT = 3;     // at most this many — fewer if fewer exist
+const SOLD_PIN_WITHIN = 8;    // pinned items land within the first N cards
+function pinRecentSoldIntoTop(list){
+  if(list.length < 2) return list; // nothing meaningful to rearrange
+  const pinned = list
+    .filter(l => l.status === 'sold' && l.sold_at)
+    .sort((a,b) => new Date(b.sold_at) - new Date(a.sold_at))
+    .slice(0, SOLD_PIN_COUNT);
+  if(pinned.length === 0) return list; // nothing sold recently — leave order untouched
+  const pinnedIds = new Set(pinned.map(l => l.id));
+  const rest = list.filter(l => !pinnedIds.has(l.id));
+  // Position #1 is left exactly as-is (often Sponsorisé) — pinned sold
+  // items start right after it, so together they still land well inside
+  // the first SOLD_PIN_WITHIN cards.
+  const first = rest.slice(0, 1);
+  const after = rest.slice(1);
+  return [...first, ...pinned, ...after];
+}
+
 /* ---------------- rendering ---------------- */
 function matchesFilters(l){
   if(state.onlyMine && l.owner_token !== deviceToken && !isMineByListing(l)) return false;
@@ -5835,7 +5872,7 @@ function cardHTML(l, opts){
       ${!plainImageOnly ? `<div class="card-price">${gnf(l.price)}</div>` : ''}
       ${sold ? '<div class="sold-label">✅ VENDU</div>' : ''}
       ${isExpired && showOwnerControls ? '<div class="sold-label" style="color:var(--pepper)">⏰ EXPIRÉ — prolongez pour la remettre en ligne</div>' : ''}
-      ${!plainImageOnly ? `<div class="card-meta">${l.commune ? l.commune+', ' : ''}${l.city} · ${freshness(l.created_at)}</div>` : ''}
+      ${!plainImageOnly ? `<div class="card-meta">${l.commune ? l.commune+', ' : ''}${l.city} · ${sold && l.sold_at ? `Vendu il y a ${freshness(l.sold_at)}` : freshness(l.created_at)}</div>` : ''}
       ${!plainImageOnly && detail && (l.owner_name || l.condition) ? `<div class="card-meta">${l.owner_name ? `👤 ${escapeHtml(l.owner_name)}` : ''}${l.owner_name && l.condition ? ' · ' : ''}${l.condition ? `🏷️ ${escapeHtml(l.condition)}` : ''}</div>` : ''}
       ${!plainImageOnly && detail && l.delivery_available ? `<div class="card-meta">🚚 Livraison possible</div>` : ''}
       ${!plainImageOnly && count > 0 ? `<div class="card-stars">${starLabel(avg, count)}</div>` : ''}
@@ -6139,6 +6176,16 @@ function renderListings(){
     filtered = [...filtered].sort((a,b)=> (popularListingIds.get(b.id)||0) - (popularListingIds.get(a.id)||0));
   } else if(state.sort === 'price_asc') filtered = [...filtered].sort((a,b)=>a.price-b.price);
   else if(state.sort === 'price_desc') filtered = [...filtered].sort((a,b)=>b.price-a.price);
+
+  // Only on the true default homepage view — recency sort, "Tout" lens, no
+  // search/category/city/date/delivery filter, not Mes annonces/favoris —
+  // so a sold item never shows up somewhere it would look out of place
+  // (e.g. inside a specific category or city someone deliberately filtered to).
+  if(soldPinningEnabled && state.sort === 'recent' && state.lens === 'tout' && !state.onlyMine && !state.onlyFavorites
+     && !state.search && state.category === 'Tout' && state.city === 'Toutes les villes'
+     && state.dateFilter === 'all' && !state.onlyDelivery){
+    filtered = pinRecentSoldIntoTop(filtered);
+  }
 
   lensRowEl.classList.toggle('hidden', state.onlyMine || state.onlyFavorites);
   updateMyShopLinkCard();
@@ -9289,6 +9336,16 @@ async function loadSiteSettings(){
     if(wMatchEnabledCheckbox) wMatchEnabledCheckbox.checked = wantedMatchAlertsEnabled;
     if(wMatchBoostedOnlyCheckbox) wMatchBoostedOnlyCheckbox.checked = wantedMatchAlertsBoostedOnly;
     renderWantedBadge();
+    // "Encourage visits" sold-pinning — defaults OFF unless explicitly 'true'
+    // (opposite default from most flags above), since this one's meant to be
+    // switched on deliberately rather than assumed on for a fresh install.
+    const newSoldPinningEnabled = map.sold_pinning_enabled === 'true';
+    if(newSoldPinningEnabled !== soldPinningEnabled){
+      soldPinningEnabled = newSoldPinningEnabled;
+      renderListings();
+    }
+    const soldPinningCheckbox = document.getElementById('adminSoldPinningEnabledCheckbox');
+    if(soldPinningCheckbox) soldPinningCheckbox.checked = soldPinningEnabled;
   }catch(e){ console.error('loadSiteSettings failed:', e); }
 }
 loadSiteSettings();
@@ -9310,6 +9367,7 @@ document.getElementById('saveSiteSettingsBtn').addEventListener('click', async (
   const wFee7d = Number(document.getElementById('adminWantedBoostFee7dInput').value);
   const wMatchAlertsEnabled = document.getElementById('adminWantedMatchAlertsEnabledCheckbox').checked;
   const wMatchAlertsBoostedOnly = document.getElementById('adminWantedMatchAlertsBoostedOnlyCheckbox').checked;
+  const soldPinningEnabledInput = document.getElementById('adminSoldPinningEnabledCheckbox').checked;
   const bumpCooldownDays = Number(document.getElementById('adminBumpCooldownDaysInput').value);
   for(const [label, val] of [['24 heures', fee1d], ['3 jours', fee3d], ['7 jours', fee7d], ['Boost Facebook', fbFee], ['Recherché 24h', wFee1d], ['Recherché 3j', wFee3d], ['Recherché 7j', wFee7d]]){
     if(!Number.isFinite(val) || val <= 0){
@@ -9338,6 +9396,7 @@ document.getElementById('saveSiteSettingsBtn').addEventListener('click', async (
       { key: 'wanted_boost_fee_7d', value: String(wFee7d) },
       { key: 'wanted_match_alerts_enabled', value: wMatchAlertsEnabled ? 'true' : 'false' },
       { key: 'wanted_match_alerts_boosted_only', value: wMatchAlertsBoostedOnly ? 'true' : 'false' },
+      { key: 'sold_pinning_enabled', value: soldPinningEnabledInput ? 'true' : 'false' },
       { key: 'bump_cooldown_days', value: String(bumpCooldownDays) },
     ]);
     if(error){
@@ -9369,7 +9428,9 @@ document.getElementById('saveSiteSettingsBtn').addEventListener('click', async (
     wantedMatchAlertsBoostedOnly = wMatchAlertsBoostedOnly;
     renderWantedBadge();
     bumpCooldownMs = bumpCooldownDays > 0 ? bumpCooldownDays * 24 * 3600 * 1000 : 0;
-    if(state.onlyMine) renderListings();
+    const soldPinningChanged = soldPinningEnabledInput !== soldPinningEnabled;
+    soldPinningEnabled = soldPinningEnabledInput;
+    if(state.onlyMine || soldPinningChanged) renderListings();
     toast('Réglages enregistrés ✅');
   }catch(e){
     console.error('saveSiteSettings failed:', e);
