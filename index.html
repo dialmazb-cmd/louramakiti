@@ -5667,7 +5667,12 @@ async function loadAndRender(){
     // seller or an admin deletes it outright before then, via their
     // existing "Supprimer" buttons, which work regardless of this window.
     const fiveDaysAgoIso = new Date(Date.now() - 5*24*3600*1000).toISOString();
-    const sixtyDaysAgoIso = new Date(Date.now() - 60*24*3600*1000).toISOString(); // generous safety net only
+    // Generous safety net only — deliberately well above the real 90-day
+    // expiry (roughly double it, same ratio as when this was 60 days
+    // alongside a 30-day expiry) so it never silently cuts off a listing
+    // that should still be considered active, while still bounding how
+    // much ancient data this query ever has to pull down.
+    const oneEightyDaysAgoIso = new Date(Date.now() - 180*24*3600*1000).toISOString();
     // Explicit column list — deliberately excludes management_pin, which
     // used to be sent to every visitor's browser via select('*'). Anon no
     // longer has SELECT on that column at all (see hardening_migration.sql),
@@ -5676,13 +5681,13 @@ async function loadAndRender(){
       .from('listings')
       .select('id,short_code,title,price,description,phone_number,category,city,commune,delivery_available,condition,image_url,image_urls,thumbnail_url,owner_name,owner_token,status,payment_status,transaction_reference,calculated_boost_fee,boost_duration_days,created_at,expires_at,sold_at,premium_expires_at,flagged')
       .or(`status.eq.active,and(status.eq.sold,sold_at.gt.${fiveDaysAgoIso})`)
-      .gt('created_at', sixtyDaysAgoIso)
+      .gt('created_at', oneEightyDaysAgoIso)
       .order('created_at', { ascending: false });
     if(error) throw error;
 
-    // The 60-day hard ceiling gives way to an ACTIVE paid sponsorship — if
+    // The 180-day hard ceiling gives way to an ACTIVE paid sponsorship — if
     // someone boosts a listing near the cutoff, it stays fully visible for
-    // the whole duration they paid for. Expiry itself (30 days) no longer
+    // the whole duration they paid for. Expiry itself (90 days) no longer
     // removes a listing from this dataset — it just stops showing to
     // buyers (handled in matchesFilters), so the seller can still find
     // and extend it under "Mes annonces".
@@ -5690,7 +5695,7 @@ async function loadAndRender(){
     allListings = (data || []).filter(l=>{
       const sponsorshipActive = l.payment_status === 'premium' && l.premium_expires_at && new Date(l.premium_expires_at).getTime() > now;
       if(sponsorshipActive) return true;
-      return new Date(l.created_at).getTime() > now - 60*24*3600*1000;
+      return new Date(l.created_at).getTime() > now - 180*24*3600*1000;
     });
 
     setOffline(false);
